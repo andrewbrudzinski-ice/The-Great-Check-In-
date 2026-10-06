@@ -218,7 +218,7 @@ function GymForm({ gym, onDone }: { gym: Gym | null; onDone: () => void }) {
   }
 
   return (
-    <div className="max-h-[80dvh] overflow-y-auto pb-1">
+    <div className="pb-1">
       <h3 className="font-display text-2xl font-black">{gym ? "Edit gym" : "Add a gym"}</h3>
       <div className="mt-4 space-y-3">
         <input className={field} placeholder="Gym name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
