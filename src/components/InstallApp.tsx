@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState, type ReactNode } from "react";
-import { rememberDismissed, useInstall, wasDismissedRecently, type Platform } from "@/lib/install";
+import { rememberDismissed, useInstall, wasDismissedRecently, type IosBrowser, type Platform } from "@/lib/install";
 import { CheckIcon, XIcon } from "./Icons";
 import { Sheet } from "./ui";
 
@@ -55,7 +55,7 @@ export function InstallBanner() {
           </motion.div>
         )}
       </AnimatePresence>
-      <InstallSheet open={sheet} onClose={() => setSheet(false)} platform={install.platform} />
+      <InstallSheet open={sheet} onClose={() => setSheet(false)} platform={install.platform} iosBrowser={install.iosBrowser} />
     </>
   );
 }
@@ -92,12 +92,18 @@ export function InstallRow() {
         </span>
         <span className="text-sm text-muted">{install.canPrompt ? "Install" : "How →"}</span>
       </button>
-      <InstallSheet open={sheet} onClose={() => setSheet(false)} platform={install.platform} />
+      <InstallSheet open={sheet} onClose={() => setSheet(false)} platform={install.platform} iosBrowser={install.iosBrowser} />
     </>
   );
 }
 
-function InstallSheet({ open, onClose, platform }: { open: boolean; onClose: () => void; platform: Platform }) {
+function InstallSheet({ open, onClose, platform, iosBrowser }: { open: boolean; onClose: () => void; platform: Platform; iosBrowser: IosBrowser }) {
+  const shareWhere =
+    iosBrowser === "chrome"
+      ? "In Chrome it's in the address bar at the top right."
+      : iosBrowser === "safari"
+        ? "In Safari it's at the bottom of the screen (top right on iPad)."
+        : "It's usually in the browser menu.";
   const steps: { icon: ReactNode; text: ReactNode }[] =
     platform === "ios"
       ? [
@@ -105,7 +111,7 @@ function InstallSheet({ open, onClose, platform }: { open: boolean; onClose: () 
             icon: <ShareGlyph />,
             text: (
               <>
-                Tap the <b className="text-ink">Share</b> button. In Safari it&apos;s at the bottom of the screen (top right on iPad).
+                Tap the <b className="text-ink">Share</b> button. {shareWhere}
               </>
             ),
           },
@@ -154,7 +160,7 @@ function InstallSheet({ open, onClose, platform }: { open: boolean; onClose: () 
           <AppIcon size={52} />
           <div>
             <h3 className="font-display text-2xl leading-tight font-black">Add to Home Screen</h3>
-            <p className="text-xs text-muted">{platform === "ios" ? "Works in Safari, and in Chrome on iOS 16.4+" : "Takes 5 seconds"}</p>
+            <p className="text-xs text-muted">{platform === "ios" && iosBrowser === "chrome" ? "Chrome on iPhone (iOS 16.4 or newer)" : "Takes 5 seconds"}</p>
           </div>
         </div>
         <ol className="mt-6 space-y-4">
@@ -166,14 +172,16 @@ function InstallSheet({ open, onClose, platform }: { open: boolean; onClose: () 
             </li>
           ))}
         </ol>
-        {platform === "ios" && (
+        {platform === "ios" && iosBrowser !== "other" && (
           <motion.div
             className="mt-6 flex justify-center text-volt"
             animate={{ y: [0, 6, 0] }}
             transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
             aria-hidden
           >
-            <span className="text-xs font-semibold">The Share button is down there ↓</span>
+            <span className="text-xs font-semibold">
+              {iosBrowser === "chrome" ? "↑ The Share button is up in the address bar" : "The Share button is down there ↓"}
+            </span>
           </motion.div>
         )}
         <button onClick={onClose} className="mt-6 w-full rounded-2xl bg-surface-3 py-3.5 font-display font-bold">
