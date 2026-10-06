@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_SETTINGS, SUPABASE_ANON_KEY, SUPABASE_URL } from "../config";
-import type { AppData, CheckIn, CheckInResult, Player, Settings, WeekResult } from "../types";
+import type { AppData, CheckIn, CheckInResult, Player, Punishment, Settings, WeekResult } from "../types";
 import type { Backend, Session } from "./types";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -114,17 +114,27 @@ export function createSupabaseBackend(): Backend {
     },
 
     async load(): Promise<AppData> {
-      const [players, checkIns, settings, results] = await Promise.all([
+      const [players, checkIns, settings, results, punishments] = await Promise.all([
         selectAll(sb, "users", "*", "created_at"),
         selectAll(sb, "check_ins", "*", "checked_in_at"),
         sb.from("settings").select("*").eq("id", 1).maybeSingle(),
         selectAll(sb, "weekly_results", "*, weeks!inner(start_date)", "created_at"),
+        selectAll(sb, "punishments", "*, weeks!inner(start_date)", "created_at"),
       ]);
       if (settings.error) throw settings.error;
       return {
         players: players.map(toPlayer),
         checkIns: checkIns.map(toCheckIn),
         settings: toSettings(settings.data),
+        punishments: punishments.map(
+          (r): Punishment => ({
+            weekStart: r.weeks.start_date,
+            text: r.punishment,
+            status: r.status,
+            completedAt: r.completed_at,
+            completedBy: r.completed_by,
+          }),
+        ),
         results: results.map(
           (r): WeekResult => ({
             weekStart: r.weeks.start_date,
@@ -167,6 +177,12 @@ export function createSupabaseBackend(): Backend {
       if (!data?.length) throw new Error("Only the club admin can change these settings.");
     },
 
+    async setPunishmentDone(weekStart, done) {
+      const { data, error } = await sb.rpc("set_punishment_done", { p_week_start: weekStart, p_done: done });
+      if (error) throw new Error(error.message);
+      if (!(data as Row)?.ok) throw new Error("Couldn't update that punishment.");
+    },
+
     async updatePlayer(id, patch) {
       const { data, error } = await sb.from("users").update(patch).eq("id", id).select("id");
       if (error) throw new Error(error.message);
@@ -177,6 +193,7 @@ export function createSupabaseBackend(): Backend {
       const channel = sb
         .channel("check-ins")
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "check_ins" }, () => cb())
+        .on("postgres_changes", { event: "*", schema: "public", table: "punishments" }, () => cb())
         .subscribe();
       return () => {
         sb.removeChannel(channel);

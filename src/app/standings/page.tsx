@@ -107,25 +107,37 @@ export default function StandingsPage() {
 
       {/* Punishment */}
       <section className="mt-10">
-        <SectionTitle>Weekly punishment</SectionTitle>
-        <div className="relative overflow-hidden rounded-3xl border border-problem/25 bg-[linear-gradient(160deg,rgba(251,65,102,0.12),rgba(251,65,102,0.02)_55%)] px-5 py-6">
+        <SectionTitle>Group punishment</SectionTitle>
+        <Link
+          href="/punishments"
+          className="relative block overflow-hidden rounded-3xl border border-problem/25 bg-[linear-gradient(160deg,rgba(251,65,102,0.12),rgba(251,65,102,0.02)_55%)] px-5 py-6"
+        >
           <SkullIcon size={90} strokeWidth={1.2} className="absolute -right-4 -bottom-4 text-problem/10" />
           <p className="font-display text-2xl leading-tight font-extrabold">“{s.punishment}”</p>
+          <p className="mt-1.5 text-xs text-muted">One person misses, the whole group does it.</p>
           <p className="mt-4 text-sm text-ink-2">
             {short.length === 0 ? (
-              <>Nobody&apos;s on the hook right now.</>
+              <>Nobody&apos;s putting the group on the hook right now.</>
             ) : (
               <>
-                If the week ended now:{" "}
-                <b className="text-problem">
-                  {joinNames(short.map((p) => p.player.name))}
-                </b>{" "}
-                would pay up.
+                If the week ended now, <b className="text-problem">{joinNames(short.map((p) => p.player.name))}</b> would sign everyone up.
               </>
             )}
           </p>
-          <p className="mt-1 text-[11px] text-muted">No payments are processed. Honor system. Shame is enforced.</p>
-        </div>
+          <div className="relative mt-5 flex items-center justify-between border-t border-problem/15 pt-4">
+            <span className="text-sm">
+              {game.owed.length === 0 ? (
+                <span className="text-safe">✓ All square</span>
+              ) : (
+                <>
+                  <b className="font-display tabular text-xl text-problem">{game.owed.length}</b> owed
+                </>
+              )}
+              <span className="text-muted"> · {game.paid.length} done</span>
+            </span>
+            <span className="text-xs font-semibold text-ink-2">Open tracker →</span>
+          </div>
+        </Link>
       </section>
 
       {/* Streaks */}

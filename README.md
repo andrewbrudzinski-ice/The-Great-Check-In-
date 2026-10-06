@@ -2,12 +2,13 @@
 
 **5 check-ins. Every week. No excuses.**
 
-A private, mobile-first competition app for three friends who lift together. Every player needs 5 GPS-verified gym check-ins per week (Monday → Sunday). Hit 5 and you're **SAFE**. Miss and you get the **PUNISHMENT**.
+A private, mobile-first competition app for three friends who lift together. Every player needs 5 GPS-verified gym check-ins per week (Monday → Sunday). Hit 5 and you're **SAFE**. If **anyone** misses, the **whole group** does the agreed punishment together, and the tracker keeps score until it's done.
 
 - **Home**: the week, everyone's progress, who's in danger, and a giant **CHECK IN** button.
 - **Map**: every verified check-in as a pin, color-coded per player.
-- **Standings**: leaderboard, *Who's in trouble?*, the punishment on the line, and streaks.
-- **History**: every finished week, with a replayable "WEEK OVER" loser reveal.
+- **Standings**: leaderboard, *Who's in trouble?*, the group punishment on the line, and streaks.
+- **Punishments** (tracker): what the group owes, who caused each one, and a **We did it** button. Done items record who marked them and when, and can be undone.
+- **History**: every finished week with an OWED/DONE badge, and a replayable "WEEK OVER" reveal of who sank the group.
 - **Profile**: total check-ins, streaks, weeks completed/failed, punishments, a 12-week chart.
 - **Settings**: players, avatars, gym location/radius, weekly requirement, cooldown, punishment, timezone, title.
 
@@ -89,6 +90,7 @@ Location is read only when someone taps Check In (or an admin taps "Use my locat
   ```
 - The week you join is a warm-up and doesn't count, unless you joined on its Monday. Nobody gets punished for a half week.
 - A streak is consecutive finished weeks at or above the requirement. If you've already hit 5 this week, the current week counts toward your streak right away.
+- If anyone finishes a week short, `finalize_past_weeks()` creates one row in `punishments` (status `owed`) for the whole group. `set_punishment_done(week, true|false)` lets any player mark it done or undo it, stamped with their id and the server time. Players can't edit the table directly.
 - Ranking puts players who've completed the requirement first (earliest finisher on top), then sorts by check-in count. **DANGER** marks whoever is furthest from 5, unless everyone is tied.
 
 ### Data model
@@ -99,6 +101,7 @@ Location is read only when someone taps Check In (or an admin taps "Use my locat
 | `check_ins` | one row per verified visit: lat/lng, accuracy, distance, gym name, server timestamp |
 | `weeks` | one row per finished week (Monday start date) |
 | `weekly_results` | frozen per-player result for each week |
+| `punishments` | one group punishment per failed week: text, `owed`/`done`, completed_at, completed_by |
 | `settings` | single row: title, subtitle, gym name/lat/lng, radius, requirement, cooldown, punishment, timezone |
 | `app_private.config` | invite code (not exposed through the API) |
 
@@ -112,7 +115,7 @@ The default is Esri's keyless dark-gray basemap. To use Mapbox, Stadia, MapTiler
 
 ```
 src/
-  app/                 routes: / map standings history profile settings login
+  app/                 routes: / map standings punishments history profile settings login
   components/          Board, CheckIn (button + success/failure), WeekReveal, CheckInMap, ui
   lib/
     game.ts            pure game logic: standings, danger, history, streaks, stats
@@ -120,7 +123,7 @@ src/
     trash.ts           the trash talk (randomized, seeded so it doesn't flicker)
     store.tsx          React context: session, data, check-in flow, live updates
     backend/           Supabase implementation + localStorage demo implementation
-supabase/schema.sql    tables, RLS, check_in(), finalize_past_weeks()
+supabase/schema.sql    tables, RLS, check_in(), finalize_past_weeks(), set_punishment_done()
 ```
 
 No money changes hands through this app. Punishments are on the honor system. Shame is enforced.

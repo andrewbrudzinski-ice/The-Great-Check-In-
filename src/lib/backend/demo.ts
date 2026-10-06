@@ -4,11 +4,11 @@
 // preview, and it says so in the UI.
 import { DEFAULT_SETTINGS, PLAYER_COLORS } from "../config";
 import { distanceM } from "../geo";
-import type { AppData, CheckIn, CheckInResult, Player, Settings, WeekResult } from "../types";
+import type { AppData, CheckIn, CheckInResult, Player, Punishment, Settings, WeekResult } from "../types";
 import { addDays, localDate, midnightIn, weekKey, weekStartOf } from "../week";
 import type { Backend, Session } from "./types";
 
-const KEY = "tgci-demo-v1";
+const KEY = "tgci-demo-v3";
 const SESSION_KEY = "tgci-demo-session";
 
 type DemoDB = AppData;
@@ -100,8 +100,15 @@ function seed(): DemoDB {
   }
 
   checkIns.sort((a, b) => a.checkedInAt.localeCompare(b.checkedInAt));
-  const db: DemoDB = { players, checkIns, results: [], settings };
+  const db: DemoDB = { players, checkIns, results: [], punishments: [], settings };
   freeze(db, now);
+  // Older debts were paid off; the most recent two are still owed.
+  const payers = ["p-mike", "p-andrew", "p-john"];
+  db.punishments.slice(0, -2).forEach((p, i) => {
+    p.status = "done";
+    p.completedBy = payers[i % payers.length];
+    p.completedAt = new Date(midnightIn(addDays(p.weekStart, 9 + (i % 3)), tz).getTime() + (7 + 4 * (i % 3)) * 3600000).toISOString();
+  });
   return db;
 }
 
@@ -129,6 +136,11 @@ function freeze(db: DemoDB, now: Date) {
       db.results.push(res);
       changed = true;
     }
+    // Anyone short → the whole group owes the punishment.
+    if (db.results.some((r) => r.weekStart === wk && !r.completed)) {
+      const p: Punishment = { weekStart: wk, text: db.settings.punishment, status: "owed", completedAt: null, completedBy: null };
+      db.punishments.push(p);
+    }
   }
   return changed;
 }
@@ -136,7 +148,7 @@ function freeze(db: DemoDB, now: Date) {
 function read(): DemoDB {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return { punishments: [], ...JSON.parse(raw) };
   } catch {
     /* fall through to a fresh seed */
   }
@@ -231,6 +243,18 @@ export function createDemoBackend(): Backend {
     async updateSettings(patch) {
       const db = read();
       db.settings = { ...db.settings, ...patch };
+      write(db);
+    },
+    async setPunishmentDone(weekStart, done) {
+      const session = currentSession();
+      if (!session) throw new Error("Sign in first.");
+      const db = read();
+      freeze(db, new Date());
+      const p = db.punishments.find((x) => x.weekStart === weekStart);
+      if (!p) throw new Error("Couldn't find that punishment.");
+      p.status = done ? "done" : "owed";
+      p.completedAt = done ? new Date().toISOString() : null;
+      p.completedBy = done ? session.userId : null;
       write(db);
     },
     async updatePlayer(id, patch) {

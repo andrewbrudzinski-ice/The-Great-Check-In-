@@ -85,6 +85,19 @@ export default function Home() {
         </div>
       </header>
 
+      {game.owed.length > 0 && (
+        <Link
+          href="/punishments"
+          className="mt-5 flex items-center gap-2 rounded-xl border border-problem/30 bg-problem/[0.08] px-3 py-2 text-[13px]"
+        >
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-problem" />
+          <span className="flex-1">
+            <b className="text-problem">{game.owed.length}</b> group punishment{game.owed.length === 1 ? "" : "s"} still owed
+          </span>
+          <span className="text-xs text-muted">Settle up →</span>
+        </Link>
+      )}
+
       {/* Week strip */}
       <div className="mt-6 flex items-center gap-3">
         <div className="grid flex-1 grid-cols-7 gap-1">
@@ -175,11 +188,20 @@ export default function Home() {
       {/* Stakes */}
       <section className="mt-8">
         <SectionTitle>On the line</SectionTitle>
-        <Link href="/standings" className="group block">
+        <Link href="/punishments" className="group block">
           <p className="font-display text-xl leading-snug font-extrabold">“{s.punishment}”</p>
           <p className="mt-1.5 text-xs text-muted">
-            Fewer than {s.weeklyRequirement} check-ins by Sunday night = punishment.{" "}
-            <span className="text-ink-2 group-hover:text-ink">Standings →</span>
+            If <b className="text-ink-2">anyone</b> finishes under {s.weeklyRequirement} by Sunday night, the whole group does it.
+          </p>
+          <p className="mt-3 flex items-center justify-between rounded-2xl border border-line px-4 py-3 text-sm group-hover:border-line-strong">
+            {game.owed.length === 0 ? (
+              <span className="text-safe">✓ All square. Nothing owed.</span>
+            ) : (
+              <span>
+                <b className="tabular text-problem">{game.owed.length}</b> punishment{game.owed.length === 1 ? "" : "s"} owed
+              </span>
+            )}
+            <span className="text-xs text-muted group-hover:text-ink">Tracker →</span>
           </p>
         </Link>
       </section>

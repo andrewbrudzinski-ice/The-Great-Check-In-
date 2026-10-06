@@ -3,13 +3,13 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import type { WeekSummary } from "@/lib/game";
-import { line } from "@/lib/trash";
+import { joinNames, line } from "@/lib/trash";
 import { weekRangeLabel } from "@/lib/week";
 import { Avatar } from "./Avatar";
 import { Confetti } from "./Confetti";
 
 /**
- * The end-of-week drama. Steps: WEEK OVER → drumroll → loser(s) → punishment.
+ * The end-of-week drama. Steps: WEEK OVER → drumroll → culprit(s) → group punishment.
  * Tap anywhere to skip ahead.
  */
 export function WeekReveal({
@@ -38,7 +38,7 @@ export function WeekReveal({
   }, [open, step]);
 
   if (!week) return null;
-  const losers = week.losers;
+  const losers = week.culprits;
   const noLosers = losers.length === 0;
   const survivors = week.rows.filter((r) => r.completed);
 
@@ -80,7 +80,7 @@ export function WeekReveal({
               {step === 1 && (
                 <motion.div key="drum" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                   <p className="font-display text-2xl font-bold text-ink-2">
-                    {noLosers ? "Let's see who failed…" : losers.length > 1 ? "And the losers are…" : "And the loser is…"}
+                    {noLosers ? "Did anyone sink the group…" : losers.length > 1 ? "The ones who sank the group…" : "The one who sank the group…"}
                   </p>
                   <div className="mt-6 flex justify-center gap-2">
                     {[0, 1, 2].map((i) => (
@@ -120,7 +120,7 @@ export function WeekReveal({
                     </>
                   ) : (
                     <>
-                      <p className="eyebrow text-problem">{losers.length > 1 ? "The losers" : "The loser"}</p>
+                      <p className="eyebrow text-problem">{losers.length > 1 ? "The culprits" : "The culprit"}</p>
                       <div className="mt-5 flex flex-wrap justify-center gap-6">
                         {losers.map((l, i) => (
                           <motion.div
@@ -147,8 +147,11 @@ export function WeekReveal({
                     <motion.div className="mt-10 w-full" initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", stiffness: 200, damping: 22 }}>
                       {!noLosers && (
                         <div className="rounded-3xl border border-problem/30 bg-problem/[0.07] px-5 py-5">
-                          <p className="eyebrow text-problem/80">Your punishment</p>
+                          <p className="eyebrow text-problem/80">Everyone&apos;s punishment</p>
                           <p className="font-display mt-2 text-2xl leading-tight font-extrabold">“{week.punishment}”</p>
+                          <p className="mt-2 text-xs text-ink-2">
+                            Thanks to {joinNames(losers.map((l) => l.player.name))}, the whole group is doing this.
+                          </p>
                         </div>
                       )}
                       <p className="mt-5 text-sm text-muted">

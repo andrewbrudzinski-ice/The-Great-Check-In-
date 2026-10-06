@@ -43,10 +43,20 @@ export type WeekResult = {
   punishment: string | null;
 };
 
+/** The group punishment owed for a week where anyone missed the goal. */
+export type Punishment = {
+  weekStart: string; // YYYY-MM-DD (Monday)
+  text: string;
+  status: "owed" | "done";
+  completedAt: string | null;
+  completedBy: string | null; // player id
+};
+
 export type AppData = {
   players: Player[];
   checkIns: CheckIn[];
   results: WeekResult[];
+  punishments: Punishment[];
   settings: Settings;
 };
 

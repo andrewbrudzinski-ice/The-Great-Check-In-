@@ -1,6 +1,6 @@
 // Pure game logic: turns raw players / check-ins / frozen results into
 // everything the UI shows. No React, no I/O — easy to test.
-import type { AppData, CheckIn, Player, WeekResult } from "./types.ts";
+import type { AppData, CheckIn, Player, Punishment, WeekResult } from "./types.ts";
 import { addDays, dayIndex, localDate, weekEndsAt, weekKey, weekStartOf } from "./week.ts";
 
 export type Status = "safe" | "one" | "close" | "problem";
@@ -37,9 +37,12 @@ export type WeekSummary = {
   weekStart: string;
   weekEnd: string;
   rows: WeekRow[];
-  losers: WeekRow[];
+  /** Who missed the goal and dragged everyone into the punishment. */
+  culprits: WeekRow[];
   /** Punishment text that applied to this week. */
   punishment: string;
+  /** The group punishment owed for this week (null for a clean week). */
+  debt: Punishment | null;
   /** True when the result came from a server-frozen record. */
   frozen: boolean;
 };
@@ -51,7 +54,8 @@ export type PlayerStats = {
   bestStreak: number;
   weeksCompleted: number;
   weeksFailed: number;
-  punishments: number;
+  /** Weeks where this player's miss put the whole group on the hook. */
+  punishmentsCaused: number;
   /** Current streak already counts this (still running) week. */
   streakIncludesThisWeek: boolean;
   /** Weekly counts for finished weeks, oldest first. */
@@ -71,6 +75,10 @@ export type GameState = {
   nobodyToday: boolean;
   history: WeekSummary[]; // newest first
   lastFinishedWeek: WeekSummary | null;
+  /** Group punishments not yet done, oldest first. */
+  owed: WeekSummary[];
+  /** Group punishments already done, newest first. */
+  paid: WeekSummary[];
   stats: Record<string, PlayerStats>;
   checkInsThisWeek: CheckIn[];
 };
@@ -166,6 +174,8 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
     else frozenByWeek.set(r.weekStart, [r]);
   }
 
+  const debtByWeek = new Map(data.punishments.map((p) => [p.weekStart, p]));
+
   const firstDay = [
     ...players.map((p) => localDate(p.createdAt, tz)),
     ...(checkIns[0] ? [localDate(checkIns[0].checkedInAt, tz)] : []),
@@ -199,13 +209,20 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
       }
       if (!weekRows.length) continue;
       weekRows.sort((a, b) => Number(b.completed) - Number(a.completed) || b.count - a.count);
-      const losers = weekRows.filter((r) => !r.completed);
+      const culprits = weekRows.filter((r) => !r.completed);
+      const text = culprits[0]?.punishment ?? frozen?.find((r) => r.punishment)?.punishment ?? settings.punishment;
+      // If anyone missed, the group owes it. Weeks the server hasn't rolled
+      // over yet get a provisional "owed" record.
+      const debt: Punishment | null = culprits.length
+        ? (debtByWeek.get(wk) ?? { weekStart: wk, text, status: "owed", completedAt: null, completedBy: null })
+        : null;
       history.push({
         weekStart: wk,
         weekEnd: addDays(wk, 6),
         rows: weekRows,
-        losers,
-        punishment: losers[0]?.punishment ?? frozen?.find((r) => r.punishment)?.punishment ?? settings.punishment,
+        culprits,
+        punishment: debt?.text ?? text,
+        debt,
         frozen: !!frozen,
       });
     }
@@ -220,7 +237,6 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
     let best = 0;
     let completed = 0;
     let failed = 0;
-    let punishments = 0;
     const timeline: PlayerStats["timeline"] = [];
     for (const w of chronological) {
       const row = w.rows.find((r) => r.player.id === p.id);
@@ -232,7 +248,6 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
         best = Math.max(best, streak);
       } else {
         failed++;
-        punishments++;
         streak = 0;
       }
     }
@@ -249,7 +264,7 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
       bestStreak: best,
       weeksCompleted: completed,
       weeksFailed: failed,
-      punishments,
+      punishmentsCaused: failed,
       streakIncludesThisWeek: includes,
       timeline,
     };
@@ -267,6 +282,8 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
     nobodyToday: !standings.some((s) => s.checkedInToday),
     history,
     lastFinishedWeek: history[0] && history[0].weekStart === addDays(weekStart, -7) ? history[0] : null,
+    owed: history.filter((w) => w.debt?.status === "owed").reverse(),
+    paid: history.filter((w) => w.debt?.status === "done"),
     stats,
     checkInsThisWeek: thisWeek,
   };

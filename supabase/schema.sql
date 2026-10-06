@@ -56,7 +56,7 @@ create table if not exists public.settings (
   check_in_radius    int not null default 150 check (check_in_radius between 25 and 5000),
   weekly_requirement int not null default 5 check (weekly_requirement between 1 and 14),
   cooldown_hours     numeric not null default 4 check (cooldown_hours between 0 and 24),
-  punishment         text not null default 'Loser buys everyone lunch.',
+  punishment         text not null default 'Saturday 6 AM group workout. Nobody skips.',
   timezone           text not null default 'America/New_York',
   updated_at         timestamptz not null default now()
 );
@@ -101,6 +101,17 @@ create table if not exists public.weekly_results (
   unique (week_id, user_id)
 );
 
+-- One group punishment per failed week: if anyone misses, everyone pays.
+create table if not exists public.punishments (
+  id           uuid primary key default gen_random_uuid(),
+  week_id      uuid not null unique references public.weeks (id) on delete cascade,
+  punishment   text not null,                 -- the agreed punishment at the time
+  status       text not null default 'owed' check (status in ('owed', 'done')),
+  completed_at timestamptz,
+  completed_by uuid references public.users (id) on delete set null,
+  created_at   timestamptz not null default now()
+);
+
 -- ----------------------------------------------------------------------------
 -- Row level security
 -- ----------------------------------------------------------------------------
@@ -109,6 +120,7 @@ alter table public.settings       enable row level security;
 alter table public.check_ins      enable row level security;
 alter table public.weeks          enable row level security;
 alter table public.weekly_results enable row level security;
+alter table public.punishments    enable row level security;
 
 create or replace function public.is_admin() returns boolean
 language sql stable security definer set search_path = public as $$
@@ -150,6 +162,11 @@ create policy "players read check-ins" on public.check_ins
 drop policy if exists "players read weeks" on public.weeks;
 create policy "players read weeks" on public.weeks
   for select to authenticated using (public.is_player());
+
+drop policy if exists "players read punishments" on public.punishments;
+create policy "players read punishments" on public.punishments
+  for select to authenticated using (public.is_player());
+-- No write policies: status changes go through set_punishment_done().
 
 drop policy if exists "players read results" on public.weekly_results;
 create policy "players read results" on public.weekly_results
@@ -305,6 +322,12 @@ begin
       group by u.id
       on conflict (week_id, user_id) do nothing;
 
+      -- Anyone short → the whole group owes the punishment.
+      insert into public.punishments (week_id, punishment)
+      select wid, s.punishment
+      where exists (select 1 from public.weekly_results r where r.week_id = wid and not r.completed)
+      on conflict (week_id) do nothing;
+
       n := n + 1;
     end if;
     wk := wk + 7;
@@ -316,6 +339,46 @@ revoke all on function public.finalize_past_weeks() from public, anon;
 grant execute on function public.finalize_past_weeks() to authenticated;
 
 -- ----------------------------------------------------------------------------
+-- Punishment tracker: any player can mark the group punishment done (or undo).
+-- ----------------------------------------------------------------------------
+create or replace function public.set_punishment_done(p_week_start date, p_done boolean)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  rec public.punishments;
+begin
+  if uid is null or not exists (select 1 from public.users where id = uid) then
+    return json_build_object('ok', false, 'code', 'not_authenticated');
+  end if;
+  perform public.finalize_past_weeks();
+
+  update public.punishments p
+     set status       = case when p_done then 'done' else 'owed' end,
+         completed_at = case when p_done then now() end,
+         completed_by = case when p_done then uid end
+    from public.weeks w
+   where w.id = p.week_id and w.start_date = p_week_start
+  returning p.* into rec;
+
+  if rec.id is null then
+    return json_build_object('ok', false, 'code', 'not_found');
+  end if;
+  return json_build_object('ok', true);
+end $$;
+
+revoke all on function public.set_punishment_done(date, boolean) from public, anon;
+grant execute on function public.set_punishment_done(date, boolean) to authenticated;
+
+-- Backfill: weeks finalized before the tracker existed.
+insert into public.punishments (week_id, punishment)
+select w.id, coalesce(max(r.punishment), (select punishment from public.settings where id = 1))
+from public.weeks w
+join public.weekly_results r on r.week_id = w.id
+group by w.id
+having bool_or(not r.completed)
+on conflict (week_id) do nothing;
+
+-- ----------------------------------------------------------------------------
 -- Live updates for the dashboard
 -- ----------------------------------------------------------------------------
 do $$
@@ -323,6 +386,10 @@ begin
   if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
     begin
       alter publication supabase_realtime add table public.check_ins;
+    exception when duplicate_object then null;
+    end;
+    begin
+      alter publication supabase_realtime add table public.punishments;
     exception when duplicate_object then null;
     end;
   end if;

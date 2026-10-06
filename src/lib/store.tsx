@@ -24,6 +24,7 @@ type Ctx = {
   refresh: () => Promise<void>;
   checkIn: (onStage?: (stage: "locating" | "verifying") => void) => Promise<CheckInOutcome>;
   updateSettings: (patch: Partial<Settings>) => Promise<void>;
+  setPunishmentDone: (weekStart: string, done: boolean) => Promise<void>;
   updatePlayer: (id: string, patch: Partial<Pick<Player, "name" | "avatar" | "color">>) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -149,6 +150,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [backend, load],
   );
 
+  const setPunishmentDone = useCallback(
+    async (weekStart: string, done: boolean) => {
+      await backend.setPunishmentDone(weekStart, done);
+      await load(false);
+    },
+    [backend, load],
+  );
+
   const updatePlayer = useCallback<Ctx["updatePlayer"]>(
     async (id, patch) => {
       await backend.updatePlayer(id, patch);
@@ -173,6 +182,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refresh: () => load(true),
     checkIn,
     updateSettings,
+    setPunishmentDone,
     updatePlayer,
     signOut,
   };

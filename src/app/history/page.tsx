@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { Avatar } from "@/components/Avatar";
@@ -17,8 +18,8 @@ export default function HistoryPage() {
 
   const totals = {
     weeks: weeks.length,
-    clean: weeks.filter((w) => w.losers.length === 0).length,
-    punishments: weeks.reduce((n, w) => n + w.losers.length, 0),
+    clean: weeks.filter((w) => !w.debt).length,
+    punishments: weeks.filter((w) => w.debt).length,
   };
 
   return (
@@ -77,18 +78,24 @@ export default function HistoryPage() {
                 </ul>
 
                 <div className="mt-3 border-t border-line pt-3 text-sm">
-                  {w.losers.length === 0 ? (
-                    <p className="font-display font-extrabold text-safe">Everyone survived. 🎉</p>
+                  {!w.debt ? (
+                    <p className="font-display font-extrabold text-safe">Everyone made it. No punishment. 🎉</p>
                   ) : (
-                    <>
-                      <p>
-                        <span className="text-muted">Loser{w.losers.length > 1 ? "s" : ""}: </span>
-                        <b className="text-problem">{joinNames(w.losers.map((l) => l.player.name))}</b>
+                    <Link href="/punishments" className="block">
+                      <p className="flex items-start justify-between gap-3">
+                        <span>
+                          <span className="text-muted">Group punishment: </span>“{w.punishment}”
+                        </span>
+                        {w.debt.status === "done" ? (
+                          <span className="shrink-0 rounded-full bg-safe/15 px-2 py-0.5 font-display text-[10px] font-black tracking-[0.1em] text-safe">DONE ✓</span>
+                        ) : (
+                          <span className="shrink-0 rounded-full bg-problem/15 px-2 py-0.5 font-display text-[10px] font-black tracking-[0.1em] text-problem">OWED</span>
+                        )}
                       </p>
-                      <p className="mt-0.5">
-                        <span className="text-muted">Punishment: </span>“{w.punishment}”
+                      <p className="mt-0.5 text-xs text-muted">
+                        Courtesy of <b className="text-problem">{joinNames(w.culprits.map((l) => l.player.name))}</b>
                       </p>
-                    </>
+                    </Link>
                   )}
                 </div>
               </motion.li>

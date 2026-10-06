@@ -286,7 +286,7 @@ function RulesSection({ settings, disabled }: { settings: Settings; disabled: bo
       <SectionTitle>Rules &amp; punishment</SectionTitle>
       <div className="space-y-4">
         <label className="block">
-          <Label>Weekly punishment</Label>
+          <Label hint="the whole group does it if anyone misses">Group punishment</Label>
           <textarea
             className={`${field} min-h-[80px] resize-none font-display text-lg font-bold`}
             value={punishment}

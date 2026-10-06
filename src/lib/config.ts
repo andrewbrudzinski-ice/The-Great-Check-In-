@@ -13,7 +13,7 @@ export const DEFAULT_SETTINGS: Settings = {
   checkInRadius: 150,
   weeklyRequirement: 5,
   cooldownHours: 4,
-  punishment: "Loser buys everyone lunch.",
+  punishment: "Saturday 6 AM group workout. Nobody skips.",
   timezone: "America/New_York",
 };
 

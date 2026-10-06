@@ -106,7 +106,7 @@ function Profile() {
         <BigStat label="Best streak" value={st.bestStreak} suffix="wks" />
         <BigStat label="Weeks completed" value={st.weeksCompleted} tone="safe" />
         <BigStat label="Weeks failed" value={st.weeksFailed} tone={st.weeksFailed ? "problem" : undefined} />
-        <BigStat label="Punishments" value={st.punishments} tone={st.punishments ? "problem" : undefined} />
+        <BigStat label="Punishments caused" value={st.punishmentsCaused} tone={st.punishmentsCaused ? "problem" : undefined} />
         <BigStat
           label="Success rate"
           value={st.weeksCompleted + st.weeksFailed ? Math.round((st.weeksCompleted / (st.weeksCompleted + st.weeksFailed)) * 100) : 0}
@@ -180,7 +180,7 @@ function WeeklyBars({ timeline }: { timeline: PlayerStats["timeline"] }) {
         <b className="tabular">
           {active.count}/{active.requirement}
         </b>{" "}
-        <span className={active.completed ? "text-safe" : "text-problem"}>{active.completed ? "✓ Safe" : "✕ Punished"}</span>
+        <span className={active.completed ? "text-safe" : "text-problem"}>{active.completed ? "✓ Safe" : "✕ Missed — group punished"}</span>
       </p>
       <div className="relative" style={{ height: H }}>
         <div

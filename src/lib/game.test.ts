@@ -35,7 +35,7 @@ function ci(userId: string, date: string, hour = 12): CheckIn {
 
 function data(checkIns: CheckIn[]): AppData {
   return {
-    players, checkIns, results: [],
+    players, checkIns, results: [], punishments: [],
     settings: {
       appTitle: "", appSubtitle: "", gymName: "G", gymLatitude: 0, gymLongitude: 0, checkInRadius: 150,
       weeklyRequirement: 5, cooldownHours: 4, punishment: "Lunch", timezone: tz,
@@ -69,13 +69,13 @@ test("standings, danger, history, streaks", () => {
 
   assert.equal(g.history.length, 3);
   assert.equal(g.history[0].weekStart, "2026-09-28");
-  assert.deepEqual(g.history[0].losers.map((l) => l.player.id), ["B"]);
+  assert.deepEqual(g.history[0].culprits.map((l) => l.player.id), ["B"]);
   assert.equal(g.lastFinishedWeek?.weekStart, "2026-09-28");
   assert.equal(g.stats.A.currentStreak, 3);
   assert.equal(g.stats.B.currentStreak, 0);
   assert.equal(g.stats.B.bestStreak, 2);
   assert.equal(g.stats.C.currentStreak, 2);
-  assert.equal(g.stats.C.punishments, 1);
+  assert.equal(g.stats.C.punishmentsCaused, 1);
   assert.equal(g.stats.A.total, 17);
 });
 
@@ -89,7 +89,7 @@ test("frozen results win over live recompute", () => {
   const w = g.history.find((h) => h.weekStart === "2026-09-28")!;
   assert.equal(w.frozen, true);
   assert.equal(w.punishment, "Old punishment");
-  assert.deepEqual(w.losers.map((l) => l.player.id), ["A"]);
+  assert.deepEqual(w.culprits.map((l) => l.player.id), ["A"]);
 });
 
 test("completing the requirement ranks first and extends streak live", () => {
@@ -119,4 +119,24 @@ test("joining mid-week is a warm-up", () => {
   const fresh = computeGame({ ...d, players: [...d.players, { ...d.players[3], id: "E", createdAt: "2026-10-06T12:00:00Z" }] }, new Date("2026-10-06T15:00:00Z"));
   assert.equal(fresh.standings.find((s) => s.player.id === "E")!.warmup, true);
   assert.equal(fresh.standings.find((s) => s.player.id === "E")!.inDanger, false);
+});
+
+test("group punishment tracker", () => {
+  const ins: CheckIn[] = [];
+  // Sep 21: everyone safe. Sep 28: only C misses → group owes it.
+  for (const wk of ["2026-09-21", "2026-09-28"]) for (const u of ["A", "B", "C"]) {
+    const n = wk === "2026-09-28" && u === "C" ? 2 : 5;
+    for (let d = 0; d < n; d++) ins.push(ci(u, addDays(wk, d)));
+  }
+  const d = data(ins);
+  let g = computeGame(d, new Date("2026-10-06T15:00:00Z"));
+  assert.deepEqual(g.owed.map((w) => w.weekStart), ["2026-09-14", "2026-09-28"]); // Sep 14: nobody checked in
+  assert.equal(g.history.find((w) => w.weekStart === "2026-09-21")!.debt, null);
+  assert.deepEqual(g.owed[1].culprits.map((c) => c.player.id), ["C"]);
+
+  d.punishments = [{ weekStart: "2026-09-28", text: "Group sauna", status: "done", completedAt: "2026-10-04T12:00:00Z", completedBy: "A" }];
+  g = computeGame(d, new Date("2026-10-06T15:00:00Z"));
+  assert.deepEqual(g.paid.map((w) => w.weekStart), ["2026-09-28"]);
+  assert.equal(g.paid[0].punishment, "Group sauna");
+  assert.deepEqual(g.owed.map((w) => w.weekStart), ["2026-09-14"]);
 });

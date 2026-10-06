@@ -17,7 +17,7 @@ const POOLS = {
     "It's {day}. You have {count}. Figure it out.",
     "{name} needs {n} more. Clock's ticking.",
     "{name} has some explaining to do.",
-    "{n} to go. Hope you like lunch bills.",
+    "{n} to go. The whole group is counting on you.",
   ],
   doubles: [
     "{n} needed, {days} {daysWord} left. Two-a-days, champ.",
@@ -71,7 +71,7 @@ const POOLS = {
     "Congratulations. You played yourself.",
     "The receipts don't lie.",
     "History will remember this.",
-    "Pay up. With dignity, if possible.",
+    "You dragged everyone down with you.",
   ],
   quiet: [
     "The gym is suspiciously quiet.",
@@ -80,7 +80,7 @@ const POOLS = {
   ],
   everyoneSafe: [
     "EVERYONE IS SAFE.",
-    "Nobody's buying lunch this week. Disappointing.",
+    "No group punishment this week. Disappointing.",
     "Full squad secured. Who even are you people?",
   ],
 } as const;
