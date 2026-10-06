@@ -58,7 +58,7 @@ The app is a fully static export, so there's no server to run.
 3. Deploy. Geolocation needs HTTPS, which Netlify provides.
 4. In Supabase *Authentication → URL Configuration*, set the Site URL to your Netlify URL.
 
-Add the site to your home screen. It ships a web manifest, so it opens full screen like an app.
+**Add to Home Screen:** the app offers it on Home (dismissible) and in Settings → This phone. On Android and desktop Chrome it's a one-tap **Install**; on iPhone it shows the Share → Add to Home Screen steps. It disappears once you're running the installed version, which opens full screen like a real app.
 
 ---
 

@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
+import "@/lib/install"; // start listening for the install prompt as early as possible
 import { useApp } from "@/lib/store";
 import { BottomNav } from "./BottomNav";
 

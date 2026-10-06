@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { Avatar } from "@/components/Avatar";
+import { InstallRow } from "@/components/InstallApp";
 import { ChevronLeft } from "@/components/Icons";
 import { SectionTitle } from "@/components/ui";
 import { resetDemo } from "@/lib/backend/demo";
@@ -34,6 +35,11 @@ export default function SettingsPage() {
           <p className="mt-2 text-sm text-muted">You can edit your own profile. Club rules are locked to the admin.</p>
         )}
       </header>
+
+      <section className="mb-10">
+        <SectionTitle>This phone</SectionTitle>
+        <InstallRow />
+      </section>
 
       <section>
         <SectionTitle>Players</SectionTitle>

@@ -7,6 +7,7 @@ import { Avatar } from "@/components/Avatar";
 import { Board } from "@/components/Board";
 import { CheckInButton } from "@/components/CheckIn";
 import { GearIcon } from "@/components/Icons";
+import { InstallBanner } from "@/components/InstallApp";
 import { WeekReveal } from "@/components/WeekReveal";
 import { SectionTitle } from "@/components/ui";
 import { useGame } from "@/lib/store";
@@ -157,6 +158,8 @@ export default function Home() {
         )}
         <CheckInButton />
       </section>
+
+      <InstallBanner />
 
       {/* Today */}
       <section className="mt-9">
