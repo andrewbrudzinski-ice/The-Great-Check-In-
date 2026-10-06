@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_SETTINGS, SUPABASE_ANON_KEY, SUPABASE_URL } from "../config";
 import type { AppData, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
+import { loginEmail } from "../login-name";
 import type { Backend, GymInput, Session } from "./types";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -112,21 +113,30 @@ export function createSupabaseBackend(): Backend {
       return () => data.subscription.unsubscribe();
     },
 
-    async signIn(email, password) {
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) throw new Error(error.message);
+    async signIn(name, password) {
+      const { error } = await sb.auth.signInWithPassword({ email: loginEmail(name), password });
+      if (error) {
+        throw new Error(/invalid login credentials/i.test(error.message) ? "Wrong name or password." : error.message);
+      }
     },
 
-    async signUp({ email, password, name, inviteCode }) {
+    async signUp({ name, password, inviteCode }) {
       const { data, error } = await sb.auth.signUp({
-        email,
+        email: loginEmail(name),
         password,
-        options: { data: { name, invite_code: inviteCode } },
+        options: { data: { name: name.trim(), invite_code: inviteCode } },
       });
       if (error) {
-        throw new Error(/database error/i.test(error.message) ? "That invite code didn't work." : error.message);
+        if (/database error/i.test(error.message)) throw new Error("That invite code didn't work.");
+        if (/already registered|already exists/i.test(error.message)) throw new Error("That name is taken. Try another.");
+        if (/password/i.test(error.message)) throw new Error("Password needs at least 6 characters.");
+        throw new Error(error.message);
       }
-      return { needsConfirmation: !data.session };
+      if (!data.session) {
+        // Name logins can't receive mail, so email confirmation must be off.
+        throw new Error("Account created, but Supabase is waiting for an email confirmation that can't arrive. Ask the admin to turn off \"Confirm email\" in Supabase, then sign in.");
+      }
+      return { needsConfirmation: false };
     },
 
     async signOut() {

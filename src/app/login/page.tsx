@@ -6,6 +6,7 @@ import { Avatar } from "@/components/Avatar";
 import { getBackend } from "@/lib/backend";
 import { resetDemo } from "@/lib/backend/demo";
 import { DEFAULT_SETTINGS } from "@/lib/config";
+import { loginNameProblem } from "@/lib/login-name";
 import type { Player } from "@/lib/types";
 
 export default function LoginPage() {
@@ -21,7 +22,7 @@ export default function LoginPage() {
         </h1>
         <p className="mt-3 text-sm text-muted">{DEFAULT_SETTINGS.appSubtitle}</p>
       </motion.div>
-      <div className="mt-10">{backend.mode === "demo" ? <DemoLogin /> : <EmailLogin />}</div>
+      <div className="mt-10">{backend.mode === "demo" ? <DemoLogin /> : <NameLogin />}</div>
     </div>
   );
 }
@@ -66,28 +67,27 @@ function DemoLogin() {
   );
 }
 
-function EmailLogin() {
+function NameLogin() {
   const [mode, setMode] = useState<"in" | "up">("in");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
   const [invite, setInvite] = useState("");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ kind: "error" | "info"; text: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    setError(null);
+    if (mode === "up") {
+      const problem = loginNameProblem(name);
+      if (problem) return setError(problem);
+    }
     setBusy(true);
-    setMsg(null);
     try {
-      if (mode === "in") {
-        await getBackend().signIn(email.trim(), password);
-      } else {
-        const { needsConfirmation } = await getBackend().signUp({ email: email.trim(), password, name: name.trim(), inviteCode: invite.trim() });
-        if (needsConfirmation) setMsg({ kind: "info", text: "Check your email to confirm, then sign in." });
-      }
+      if (mode === "in") await getBackend().signIn(name, password);
+      else await getBackend().signUp({ name, password, inviteCode: invite.trim() });
     } catch (err) {
-      setMsg({ kind: "error", text: err instanceof Error ? err.message : "Something went wrong." });
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setBusy(false);
     }
@@ -97,10 +97,18 @@ function EmailLogin() {
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      {mode === "up" && (
-        <input className={field} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={40} autoComplete="nickname" />
-      )}
-      <input className={field} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+      <input
+        className={field}
+        placeholder="Name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        required
+        maxLength={40}
+        autoComplete="username"
+        autoCapitalize="words"
+        autoCorrect="off"
+        spellCheck={false}
+      />
       <input
         className={field}
         type="password"
@@ -112,9 +120,14 @@ function EmailLogin() {
         autoComplete={mode === "in" ? "current-password" : "new-password"}
       />
       {mode === "up" && (
-        <input className={field} placeholder="Invite code (if your club uses one)" value={invite} onChange={(e) => setInvite(e.target.value)} autoComplete="off" />
+        <>
+          <input className={field} placeholder="Invite code (if your club uses one)" value={invite} onChange={(e) => setInvite(e.target.value)} autoComplete="off" />
+          <p className="px-1 text-xs text-muted">
+            This name is how you&apos;ll sign in, so pick one you&apos;ll remember. Capitals and spaces don&apos;t matter. Password: 6+ characters.
+          </p>
+        </>
       )}
-      {msg && <p className={`text-sm ${msg.kind === "error" ? "text-problem" : "text-safe"}`}>{msg.text}</p>}
+      {error && <p className="text-sm text-problem">{error}</p>}
       <button disabled={busy} className="mt-2 w-full rounded-2xl bg-volt py-4 font-display text-lg font-black tracking-wide text-volt-ink disabled:opacity-60">
         {busy ? "…" : mode === "in" ? "Sign in" : "Join the club"}
       </button>
@@ -122,12 +135,15 @@ function EmailLogin() {
         type="button"
         onClick={() => {
           setMode(mode === "in" ? "up" : "in");
-          setMsg(null);
+          setError(null);
         }}
         className="w-full py-2 text-sm text-muted hover:text-ink"
       >
         {mode === "in" ? "New here? Create your account" : "Already a member? Sign in"}
       </button>
+      {mode === "in" && (
+        <p className="pt-2 text-center text-[11px] text-muted">Forgot your password? Ask the admin to reset it in Supabase.</p>
+      )}
     </form>
   );
 }

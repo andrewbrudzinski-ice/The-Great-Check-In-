@@ -9,6 +9,7 @@ import { SectionTitle } from "@/components/ui";
 import { resetDemo } from "@/lib/backend/demo";
 import { AVATAR_CHOICES, PLAYER_COLORS } from "@/lib/config";
 import { approvedGyms } from "@/lib/gyms";
+import { handleFromEmail } from "@/lib/login-name";
 import { useGame } from "@/lib/store";
 import type { Player, Settings } from "@/lib/types";
 import { isValidTimezone } from "@/lib/week";
@@ -18,7 +19,8 @@ const field =
   "w-full rounded-xl border border-line bg-surface px-3.5 py-3 text-ink outline-none placeholder:text-muted/60 focus:border-volt/60 disabled:opacity-60";
 
 export default function SettingsPage() {
-  const { data, me, mode, signOut } = useGame();
+  const { data, me, mode, signOut, session } = useGame();
+  const signInName = handleFromEmail(session?.email);
   const isAdmin = !!me?.isAdmin || mode === "demo";
   const players = data.players;
   const pendingCount = data.gyms.filter((g) => !g.archived && g.status === "pending").length;
@@ -38,6 +40,12 @@ export default function SettingsPage() {
 
       <section className="mb-10">
         <SectionTitle>This phone</SectionTitle>
+        {signInName && (
+          <p className="mb-3 text-sm text-muted">
+            You sign in as <b className="text-ink">{signInName}</b>
+            <span className="text-xs"> (changing your display name below doesn&apos;t change this)</span>
+          </p>
+        )}
         <InstallRow />
       </section>
 
