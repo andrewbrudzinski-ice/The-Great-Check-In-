@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { cooldownRemaining } from "@/lib/game";
@@ -115,6 +116,7 @@ function SuccessOverlay({
   required: number;
   tz: string;
 }) {
+  const router = useRouter();
   const count = (success?.countBefore ?? 0) + 1;
   const justSafe = count === required;
   const already = count > required;
@@ -229,7 +231,21 @@ function SuccessOverlay({
             </motion.dl>
 
             <motion.button
-              className="mt-10 rounded-full bg-surface-3 px-8 py-3 font-display text-sm font-bold tracking-wide"
+              onClick={(e) => {
+                e.stopPropagation();
+                const id = success.checkIn.id;
+                onClose();
+                router.push(`/map?checkin=${id}`);
+              }}
+              className="mt-6 text-xs font-semibold text-ink-2 underline underline-offset-4 hover:text-ink"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+            >
+              View check-in receipt on the map
+            </motion.button>
+            <motion.button
+              className="mt-6 rounded-full bg-surface-3 px-8 py-3 font-display text-sm font-bold tracking-wide"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.9 }}

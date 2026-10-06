@@ -9,6 +9,7 @@ import { GearIcon } from "@/components/Icons";
 import { Ring, SectionTitle, StatusPill } from "@/components/ui";
 import type { PlayerStats } from "@/lib/game";
 import { STATUS_META } from "@/lib/game";
+import { formatDistance } from "@/lib/geo";
 import { useGame } from "@/lib/store";
 import { playerLine } from "@/lib/trash";
 import { formatDateTime, shortDate } from "@/lib/week";
@@ -128,9 +129,14 @@ function Profile() {
         ) : (
           <ul className="divide-y divide-line">
             {recent.map((c) => (
-              <li key={c.id} className="flex items-center justify-between py-2.5 text-sm">
-                <span>{c.gymName}</span>
-                <span className="tabular text-xs text-muted">{formatDateTime(c.checkedInAt, tz)}</span>
+              <li key={c.id}>
+                <Link href={`/map?checkin=${c.id}`} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                  <span>
+                    {c.gymName}
+                    {c.distanceM != null && <span className="text-xs text-muted"> · ✓ {formatDistance(c.distanceM)} from gym</span>}
+                  </span>
+                  <span className="tabular text-xs text-muted">{formatDateTime(c.checkedInAt, tz)} 📍</span>
+                </Link>
               </li>
             ))}
           </ul>

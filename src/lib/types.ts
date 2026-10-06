@@ -15,6 +15,8 @@ export type CheckIn = {
   longitude: number;
   accuracy: number | null;
   distanceM: number | null;
+  /** Check-in radius in force when this was verified. */
+  radiusM: number | null;
   gymName: string;
   /** Server timestamp, ISO 8601. */
   checkedInAt: string;

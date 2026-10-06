@@ -8,7 +8,7 @@ import type { AppData, CheckIn, CheckInResult, Player, Punishment, Settings, Wee
 import { addDays, localDate, midnightIn, weekKey, weekStartOf } from "../week";
 import type { Backend, Session } from "./types";
 
-const KEY = "tgci-demo-v3";
+const KEY = "tgci-demo-v4";
 const SESSION_KEY = "tgci-demo-session";
 
 type DemoDB = AppData;
@@ -74,6 +74,7 @@ function seed(): DemoDB {
       longitude: lng,
       accuracy: 8 + Math.round(r() * 20),
       distanceM: Math.round(distanceM(lat, lng, settings.gymLatitude!, settings.gymLongitude!)),
+      radiusM: settings.checkInRadius,
       gymName: settings.gymName,
       checkedInAt: t.toISOString(),
     });
@@ -233,6 +234,7 @@ export function createDemoBackend(): Backend {
         longitude,
         accuracy,
         distanceM: Math.round(d * 10) / 10,
+        radiusM: s.checkInRadius,
         gymName: s.gymName,
         checkedInAt: new Date().toISOString(),
       };

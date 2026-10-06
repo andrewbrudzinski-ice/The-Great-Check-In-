@@ -2,9 +2,10 @@
 
 import L from "leaflet";
 import { useEffect, useMemo } from "react";
-import { Circle, CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import { Circle, CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import { MAP_TILE_ATTRIBUTION, MAP_TILE_IS_DEFAULT, MAP_TILE_MAX_NATIVE_ZOOM, MAP_TILE_URL } from "@/lib/config";
 import type { CheckIn, Player, Settings } from "@/lib/types";
+import { formatDistance } from "@/lib/geo";
 import { formatDateTime } from "@/lib/week";
 
 
@@ -93,6 +94,24 @@ export default function CheckInMap({
           </CircleMarker>
         </>
       )}
+      {/* Selected check-in: GPS accuracy halo + line back to the gym */}
+      {selected && (
+        <>
+          {selected.accuracy != null && (
+            <Circle
+              center={[selected.latitude, selected.longitude]}
+              radius={selected.accuracy}
+              pathOptions={{ color: byId.get(selected.userId)?.color ?? "#fff", weight: 1, opacity: 0.8, fillOpacity: 0.12 }}
+            />
+          )}
+          {gym && (
+            <Polyline
+              positions={[gym, [selected.latitude, selected.longitude]]}
+              pathOptions={{ color: "#ffffff", weight: 1.5, opacity: 0.7, dashArray: "3 5" }}
+            />
+          )}
+        </>
+      )}
       {checkIns.map((c) => {
         const p = byId.get(c.userId);
         if (!p) return null;
@@ -110,6 +129,11 @@ export default function CheckInMap({
                 <b style={{ color: p.color }}>{p.name}</b>
                 <div>{formatDateTime(c.checkedInAt, settings.timezone)}</div>
                 <div style={{ color: "#7c828d" }}>{c.gymName}</div>
+                {c.distanceM != null && (
+                  <div style={{ color: "#4ade80", marginTop: 4 }}>
+                    ✓ {formatDistance(c.distanceM)} from gym{c.accuracy != null ? ` · ±${formatDistance(c.accuracy)}` : ""}
+                  </div>
+                )}
               </div>
             </Popup>
           </Marker>

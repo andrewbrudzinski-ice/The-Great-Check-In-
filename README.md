@@ -5,7 +5,7 @@
 A private, mobile-first competition app for three friends who lift together. Every player needs 5 GPS-verified gym check-ins per week (Monday → Sunday). Hit 5 and you're **SAFE**. If **anyone** misses, the **whole group** does the agreed punishment together, and the tracker keeps score until it's done.
 
 - **Home**: the week, everyone's progress, who's in danger, and a giant **CHECK IN** button.
-- **Map**: every verified check-in as a pin, color-coded per player.
+- **Map**: every verified check-in as a pin, color-coded per player. Tap any check-in (on the map, Home, or a profile) to open its **receipt**: exact phone coordinates (with an Open in Maps link), GPS accuracy, distance from the gym vs. the allowed radius, and the server timestamp.
 - **Standings**: leaderboard, *Who's in trouble?*, the group punishment on the line, and streaks.
 - **Punishments** (tracker): what the group owes, who caused each one, and a **We did it** button. Done items record who marked them and when, and can be undone.
 - **History**: every finished week with an OWED/DONE badge, and a replayable "WEEK OVER" reveal of who sank the group.

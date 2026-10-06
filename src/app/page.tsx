@@ -172,12 +172,15 @@ export default function Home() {
               const p = playerById(c.userId);
               if (!p) return null;
               return (
-                <motion.li key={c.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3 py-1.5">
-                  <Avatar player={p} size={30} />
-                  <span className="flex-1 text-sm">
-                    <b className="font-semibold">{p.name}</b> <span className="text-muted">checked in at {c.gymName}</span>
-                  </span>
-                  <span className="tabular text-xs text-muted">{formatTime(c.checkedInAt, tz)}</span>
+                <motion.li key={c.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}>
+                  <Link href={`/map?checkin=${c.id}`} className="flex items-center gap-3 py-1.5" aria-label={`${p.name}'s check-in receipt`}>
+                    <Avatar player={p} size={30} />
+                    <span className="flex-1 text-sm">
+                      <b className="font-semibold">{p.name}</b> <span className="text-muted">checked in at {c.gymName}</span>
+                    </span>
+                    <span className="tabular text-xs text-muted">{formatTime(c.checkedInAt, tz)}</span>
+                    <span className="text-xs text-muted">📍</span>
+                  </Link>
                 </motion.li>
               );
             })}

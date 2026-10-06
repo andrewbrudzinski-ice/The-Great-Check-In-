@@ -21,6 +21,7 @@ const toCheckIn = (r: Row): CheckIn => ({
   longitude: r.longitude,
   accuracy: r.accuracy,
   distanceM: r.distance_m,
+  radiusM: r.radius_m ?? null,
   gymName: r.gym_name,
   checkedInAt: new Date(r.checked_in_at).toISOString(),
 });

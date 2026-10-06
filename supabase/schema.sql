@@ -75,6 +75,8 @@ create table if not exists public.check_ins (
   gym_name      text not null,
   checked_in_at timestamptz not null default now()
 );
+-- radius in force when the check-in was verified (added later; nullable for old rows)
+alter table public.check_ins add column if not exists radius_m int;
 create index if not exists check_ins_user_time on public.check_ins (user_id, checked_in_at desc);
 create index if not exists check_ins_time on public.check_ins (checked_in_at desc);
 
@@ -267,8 +269,8 @@ begin
                              'next_allowed_at', last + make_interval(secs => s.cooldown_hours * 3600));
   end if;
 
-  insert into public.check_ins (user_id, latitude, longitude, accuracy, distance_m, gym_name)
-  values (uid, p_latitude, p_longitude, p_accuracy, round(d::numeric, 1), s.gym_name)
+  insert into public.check_ins (user_id, latitude, longitude, accuracy, distance_m, radius_m, gym_name)
+  values (uid, p_latitude, p_longitude, p_accuracy, round(d::numeric, 1), s.check_in_radius, s.gym_name)
   returning * into rec;
 
   return json_build_object('ok', true, 'check_in', row_to_json(rec));

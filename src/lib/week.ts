@@ -128,6 +128,21 @@ export function formatDateTime(instant: string | Date, tz: string): string {
   }).format(new Date(instant));
 }
 
+/** Full timestamp with seconds and zone, for check-in receipts. */
+export function formatExact(instant: string | Date, tz: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
+  }).format(new Date(instant));
+}
+
 /** "2d 4h", "3h 12m", "8m" */
 export function formatDuration(ms: number): string {
   const m = Math.max(0, Math.ceil(ms / 60000));

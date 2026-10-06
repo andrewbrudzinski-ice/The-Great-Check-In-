@@ -1,8 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
+import { Receipt } from "@/components/Receipt";
 import { PageTitle } from "@/components/ui";
 import { formatDistance } from "@/lib/geo";
 import { useGame } from "@/lib/store";
@@ -14,11 +16,23 @@ const CheckInMap = dynamic(() => import("@/components/CheckInMap"), {
 });
 
 export default function MapPage() {
+  return (
+    <Suspense>
+      <GymMap />
+    </Suspense>
+  );
+}
+
+function GymMap() {
   const { data, game } = useGame();
-  const [who, setWho] = useState<string | "all">("all");
-  const [range, setRange] = useState<"week" | "all">("week");
-  const [selected, setSelected] = useState<string | null>(null);
   const tz = data.settings.timezone;
+  // ?checkin=<id> opens straight to that check-in's receipt
+  const linked = data.checkIns.find((c) => c.id === useSearchParams().get("checkin")) ?? null;
+  const [who, setWho] = useState<string | "all">("all");
+  const [range, setRange] = useState<"week" | "all">(() =>
+    linked && weekKey(linked.checkedInAt, tz) !== game.weekStart ? "all" : "week",
+  );
+  const [selected, setSelected] = useState<string | null>(linked?.id ?? null);
 
   const visible = useMemo(
     () =>
@@ -29,6 +43,7 @@ export default function MapPage() {
   );
   const list = useMemo(() => visible.slice().reverse().slice(0, 60), [visible]);
   const byId = (id: string) => data.players.find((p) => p.id === id);
+  const selectedCheckIn = visible.find((c) => c.id === selected) ?? null;
 
   const chip = (active: boolean) =>
     `shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
@@ -77,9 +92,21 @@ export default function MapPage() {
         </div>
       </div>
 
-      <p className="mt-3 text-[11px] leading-relaxed text-muted">
-        Location is read only when someone taps Check In. No background tracking — just one pin per visit.
-      </p>
+      {selectedCheckIn && byId(selectedCheckIn.userId) ? (
+        <div className="mt-4">
+          <Receipt
+            checkIn={selectedCheckIn}
+            player={byId(selectedCheckIn.userId)!}
+            settings={data.settings}
+            onClose={() => setSelected(null)}
+          />
+        </div>
+      ) : (
+        <p className="mt-3 text-[11px] leading-relaxed text-muted">
+          Tap any pin or check-in to see its receipt: exact location, GPS accuracy and distance from the gym. Location is
+          read only when someone taps Check In. No background tracking.
+        </p>
+      )}
 
       <ul className="mt-5 divide-y divide-line">
         {list.length === 0 && (
@@ -104,7 +131,13 @@ export default function MapPage() {
                   <p className="text-sm font-semibold">{p.name}</p>
                   <p className="truncate text-xs text-muted">
                     {c.gymName}
-                    {c.distanceM != null && ` · ${formatDistance(c.distanceM)} from center`}
+                    {c.distanceM != null && (
+                      <>
+                        {" · "}
+                        <span className="text-safe">✓</span> {formatDistance(c.distanceM)} from gym
+                      </>
+                    )}
+                    {c.accuracy != null && ` · ±${formatDistance(c.accuracy)}`}
                   </p>
                 </div>
                 <span className="tabular text-right text-xs text-ink-2">{formatDateTime(c.checkedInAt, tz)}</span>
