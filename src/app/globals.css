@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #08090b;
+  --color-surface: #111317;
+  --color-surface-2: #171a1f;
+  --color-surface-3: #1f232a;
+  --color-line: rgb(255 255 255 / 0.07);
+  --color-line-strong: rgb(255 255 255 / 0.13);
+  --color-ink: #f3f4f6;
+  --color-ink-2: #b4b8c0;
+  --color-muted: #7c828d;
+  --color-volt: #c8ff3d;
+  --color-volt-ink: #0b0f02;
+
+  --color-safe: #4ade80;
+  --color-one: #facc15;
+  --color-close: #fb923c;
+  --color-problem: #fb4166;
+
+  --font-display: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --animate-shimmer: shimmer 2.4s linear infinite;
+  --animate-pulse-ring: pulse-ring 2.6s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+  --animate-shake: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to { background-position: 200% 0; }
+  }
+  @keyframes pulse-ring {
+    0% { transform: scale(1); opacity: 0.55; }
+    80%, 100% { transform: scale(1.12, 1.35); opacity: 0; }
+  }
+  @keyframes shake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(3px); }
+    30%, 50%, 70% { transform: translateX(-6px); }
+    40%, 60% { transform: translateX(6px); }
+  }
+}
+
+:root {
+  color-scheme: dark;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+body {
+  font-family: var(--font-sans);
+  /* faint top glow — the only big gradient in the app */
+  background-image:
+    radial-gradient(120% 60% at 50% -10%, rgb(200 255 61 / 0.07), transparent 60%),
+    radial-gradient(80% 50% at 100% 0%, rgb(61 217 255 / 0.04), transparent 60%);
+  background-attachment: fixed;
+  min-height: 100dvh;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-variation-settings: "wdth" 112;
+  letter-spacing: -0.02em;
+}
+
+.font-condensed {
+  font-family: var(--font-display);
+  font-variation-settings: "wdth" 75;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-variation-settings: "wdth" 100;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+/* Hairline section rule with a label */
+.rule {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-line);
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+button, a { touch-action: manipulation; }
+
+:focus-visible {
+  outline: 2px solid var(--color-volt);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+input, textarea, select {
+  font-size: 16px; /* stop iOS zoom on focus */
+}
+
+/* ---- Leaflet dark skin ---- */
+.leaflet-container {
+  /* keep Leaflet's z-index 400+ panes from escaping over sheets and modals */
+  isolation: isolate;
+  background: #0d0f12 !important;
+  font-family: var(--font-sans) !important;
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--color-surface-2) !important;
+  color: var(--color-ink) !important;
+  border: 1px solid var(--color-line-strong);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.5) !important;
+}
+.leaflet-popup-content-wrapper { border-radius: 14px !important; }
+.leaflet-popup-content { margin: 12px 14px !important; }
+.leaflet-container a.leaflet-popup-close-button { color: var(--color-muted) !important; }
+.leaflet-control-zoom a {
+  background: var(--color-surface-2) !important;
+  color: var(--color-ink) !important;
+  border-color: var(--color-line-strong) !important;
+}
+.leaflet-control-attribution {
+  background: rgb(8 9 11 / 0.7) !important;
+  color: var(--color-muted) !important;
+  font-size: 9px !important;
+}
+.leaflet-control-attribution a { color: var(--color-ink-2) !important; }
+.tiles-dim { filter: brightness(0.62) contrast(1.15) saturate(0.8); }
+.checkin-marker { background: none !important; border: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
