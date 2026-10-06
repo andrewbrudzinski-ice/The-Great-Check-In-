@@ -33,7 +33,12 @@ function Profile() {
   const st = game.stats[player.id];
   const pw = game.standings.find((s) => s.player.id === player.id)!;
   const isMe = player.id === me?.id;
-  const recent = data.checkIns.filter((c) => c.userId === player.id).slice(-8).reverse();
+  const mineAll = data.checkIns.filter((c) => c.userId === player.id);
+  const recent = mineAll.slice(-8).reverse();
+  // Visits per gym, most-used first
+  const gymVisits = Object.entries(
+    mineAll.reduce<Record<string, number>>((acc, c) => ((acc[c.gymName] = (acc[c.gymName] ?? 0) + 1), acc), {}),
+  ).sort((a, b) => b[1] - a[1]);
   const tz = data.settings.timezone;
   const ctx = { weekStart: game.weekStart, dayIndex: game.dayIndex, daysLeft: game.daysLeft };
 
@@ -114,6 +119,26 @@ function Profile() {
           suffix="%"
         />
       </dl>
+
+      {gymVisits.length > 0 && (
+        <section className="mt-8">
+          <SectionTitle>Gyms</SectionTitle>
+          <ul className="space-y-2">
+            {gymVisits.map(([name, n], i) => (
+              <li key={name} className="flex items-center gap-3 text-sm">
+                <span className="min-w-0 flex-1 truncate">
+                  {name}
+                  {i === 0 && gymVisits.length > 1 && <span className="ml-1.5 text-[10px] font-bold tracking-wider text-volt">HOME GYM</span>}
+                </span>
+                <span className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-3">
+                  <span className="block h-full rounded-full bg-ink-2" style={{ width: `${(n / gymVisits[0][1]) * 100}%` }} />
+                </span>
+                <span className="tabular w-8 text-right text-xs text-muted">{n}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Weekly chart */}
       <section className="mt-8">

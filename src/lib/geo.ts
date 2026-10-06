@@ -17,8 +17,10 @@ export function formatDistance(m: number): string {
 export type Fix = { latitude: number; longitude: number; accuracy: number };
 
 export class LocationError extends Error {
-  constructor(public code: "denied" | "unavailable" | "timeout" | "unsupported", message: string) {
+  code: "denied" | "unavailable" | "timeout" | "unsupported";
+  constructor(code: LocationError["code"], message: string) {
     super(message);
+    this.code = code;
   }
 }
 

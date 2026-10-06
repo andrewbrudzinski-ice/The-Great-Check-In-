@@ -1,15 +1,12 @@
 import type { Settings } from "./types";
 
 /**
- * Defaults used before an admin configures the club. The gym location is
- * intentionally empty: set it in Settings (there's a "use my location" button).
+ * Defaults used before an admin configures the club. No gym is built in:
+ * players add their gyms on the Gyms screen (there's a "use my location" button).
  */
 export const DEFAULT_SETTINGS: Settings = {
   appTitle: "The Great Check In",
   appSubtitle: "5 check-ins. Every week. No excuses.",
-  gymName: "The Gym",
-  gymLatitude: null,
-  gymLongitude: null,
   checkInRadius: 150,
   weeklyRequirement: 5,
   cooldownHours: 4,

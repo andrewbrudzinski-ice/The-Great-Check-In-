@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getBackend, type Session } from "./backend";
+import type { GymInput } from "./backend/types";
 import { computeGame, type GameState } from "./game";
 import { getCurrentFix, LocationError } from "./geo";
 import type { AppData, CheckInResult, Player, Settings } from "./types";
@@ -25,6 +26,10 @@ type Ctx = {
   checkIn: (onStage?: (stage: "locating" | "verifying") => void) => Promise<CheckInOutcome>;
   updateSettings: (patch: Partial<Settings>) => Promise<void>;
   setPunishmentDone: (weekStart: string, done: boolean) => Promise<void>;
+  addGym: (input: GymInput) => Promise<void>;
+  approveGym: (id: string) => Promise<void>;
+  updateGym: (id: string, input: GymInput) => Promise<void>;
+  archiveGym: (id: string) => Promise<void>;
   updatePlayer: (id: string, patch: Partial<Pick<Player, "name" | "avatar" | "color">>) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -158,6 +163,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [backend, load],
   );
 
+  // Run a backend write, then reload so every screen sees it.
+  const write = useCallback(
+    <A extends unknown[]>(fn: (...args: A) => Promise<unknown>) =>
+      async (...args: A) => {
+        await fn(...args);
+        await load(false);
+      },
+    [load],
+  );
+  const gymActions = useMemo(
+    () => ({
+      addGym: write((i: GymInput) => backend.addGym(i)),
+      approveGym: write((id: string) => backend.approveGym(id)),
+      updateGym: write((id: string, i: GymInput) => backend.updateGym(id, i)),
+      archiveGym: write((id: string) => backend.archiveGym(id)),
+    }),
+    [backend, write],
+  );
+
   const updatePlayer = useCallback<Ctx["updatePlayer"]>(
     async (id, patch) => {
       await backend.updatePlayer(id, patch);
@@ -183,6 +207,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     checkIn,
     updateSettings,
     setPunishmentDone,
+    ...gymActions,
     updatePlayer,
     signOut,
   };

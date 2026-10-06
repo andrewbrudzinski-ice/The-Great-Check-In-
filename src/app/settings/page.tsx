@@ -1,19 +1,17 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { Avatar } from "@/components/Avatar";
-import { ChevronLeft, CrosshairIcon } from "@/components/Icons";
+import { ChevronLeft } from "@/components/Icons";
 import { SectionTitle } from "@/components/ui";
 import { resetDemo } from "@/lib/backend/demo";
 import { AVATAR_CHOICES, PLAYER_COLORS } from "@/lib/config";
-import { getCurrentFix } from "@/lib/geo";
+import { approvedGyms } from "@/lib/gyms";
 import { useGame } from "@/lib/store";
 import type { Player, Settings } from "@/lib/types";
 import { isValidTimezone } from "@/lib/week";
 
-const CheckInMap = dynamic(() => import("@/components/CheckInMap"), { ssr: false });
 
 const field =
   "w-full rounded-xl border border-line bg-surface px-3.5 py-3 text-ink outline-none placeholder:text-muted/60 focus:border-volt/60 disabled:opacity-60";
@@ -22,6 +20,7 @@ export default function SettingsPage() {
   const { data, me, mode, signOut } = useGame();
   const isAdmin = !!me?.isAdmin || mode === "demo";
   const players = data.players;
+  const pendingCount = data.gyms.filter((g) => !g.archived && g.status === "pending").length;
 
   return (
     <div>
@@ -45,7 +44,17 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <GymSection settings={data.settings} disabled={!isAdmin} />
+      <section className="mt-10">
+        <SectionTitle>Gyms</SectionTitle>
+        <Link href="/gyms" className="flex items-center justify-between rounded-2xl border border-line bg-surface/50 px-4 py-3.5 hover:border-line-strong">
+          <span>
+            <span className="font-semibold">{approvedGyms(data.gyms).length} approved</span>
+            {pendingCount > 0 && <span className="text-one"> · {pendingCount} waiting for approval</span>}
+            <span className="block text-xs text-muted">Check-ins count at any of them. Anyone can add one.</span>
+          </span>
+          <span className="text-sm text-muted">Manage →</span>
+        </Link>
+      </section>
       <RulesSection settings={data.settings} disabled={!isAdmin} />
       <AppSection settings={data.settings} disabled={!isAdmin} />
 
@@ -177,98 +186,6 @@ function PlayerEditor({ player, canEdit }: { player: Player; canEdit: boolean })
         </div>
       )}
     </div>
-  );
-}
-
-function GymSection({ settings, disabled }: { settings: Settings; disabled: boolean }) {
-  const { updateSettings } = useGame();
-  const [gymName, setGymName] = useState(settings.gymName);
-  const [lat, setLat] = useState(settings.gymLatitude?.toString() ?? "");
-  const [lng, setLng] = useState(settings.gymLongitude?.toString() ?? "");
-  const [radius, setRadius] = useState(settings.checkInRadius);
-  const [locating, setLocating] = useState(false);
-  const [locErr, setLocErr] = useState<string | null>(null);
-  const { state, run } = useSaver();
-
-  const latN = Number(lat);
-  const lngN = Number(lng);
-  const coordsOk = lat !== "" && lng !== "" && Math.abs(latN) <= 90 && Math.abs(lngN) <= 180 && !isNaN(latN) && !isNaN(lngN);
-
-  async function useMyLocation() {
-    setLocating(true);
-    setLocErr(null);
-    try {
-      const fix = await getCurrentFix();
-      setLat(fix.latitude.toFixed(6));
-      setLng(fix.longitude.toFixed(6));
-    } catch (e) {
-      setLocErr(e instanceof Error ? e.message : "Couldn't get location.");
-    } finally {
-      setLocating(false);
-    }
-  }
-
-  return (
-    <section className="mt-10">
-      <SectionTitle>Gym</SectionTitle>
-      <div className="space-y-4">
-        <label className="block">
-          <Label>Gym name</Label>
-          <input className={field} value={gymName} onChange={(e) => setGymName(e.target.value)} disabled={disabled} maxLength={60} />
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <Label>Latitude</Label>
-            <input className={`${field} tabular`} inputMode="decimal" value={lat} onChange={(e) => setLat(e.target.value)} disabled={disabled} placeholder="40.7359" />
-          </label>
-          <label className="block">
-            <Label>Longitude</Label>
-            <input className={`${field} tabular`} inputMode="decimal" value={lng} onChange={(e) => setLng(e.target.value)} disabled={disabled} placeholder="-73.9911" />
-          </label>
-        </div>
-        {!disabled && (
-          <button
-            onClick={useMyLocation}
-            disabled={locating}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong py-3 text-sm font-semibold text-ink-2 hover:text-ink"
-          >
-            <CrosshairIcon size={16} className={locating ? "animate-spin" : ""} />
-            {locating ? "Locating…" : "Use my location (stand inside the gym)"}
-          </button>
-        )}
-        {locErr && <p className="text-xs text-problem">{locErr}</p>}
-        <label className="block">
-          <Label hint={`${radius} m`}>Check-in radius</Label>
-          <input
-            type="range"
-            min={50}
-            max={500}
-            step={10}
-            value={radius}
-            onChange={(e) => setRadius(Number(e.target.value))}
-            disabled={disabled}
-            className="w-full accent-[#c8ff3d]"
-          />
-        </label>
-        {coordsOk && (
-          <div className="h-48 overflow-hidden rounded-2xl border border-line">
-            <CheckInMap
-              checkIns={[]}
-              players={[]}
-              settings={{ ...settings, gymName, gymLatitude: latN, gymLongitude: lngN, checkInRadius: radius }}
-              className="h-full w-full"
-            />
-          </div>
-        )}
-      </div>
-      {!disabled && (
-        <SaveRow
-          state={state}
-          disabled={!coordsOk || !gymName.trim()}
-          onSave={() => run(() => updateSettings({ gymName: gymName.trim(), gymLatitude: latN, gymLongitude: lngN, checkInRadius: radius }))}
-        />
-      )}
-    </section>
   );
 }
 

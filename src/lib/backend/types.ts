@@ -1,4 +1,4 @@
-import type { AppData, CheckInResult, Player, Settings } from "../types";
+import type { AppData, CheckInResult, Gym, Player, Settings } from "../types";
 
 export type Session = { userId: string; email?: string };
 
@@ -19,9 +19,17 @@ export interface Backend {
   load(): Promise<AppData>;
   checkIn(fix: { latitude: number; longitude: number; accuracy: number | null }): Promise<CheckInResult>;
   updateSettings(patch: Partial<Settings>): Promise<void>;
+  /** Add a gym. Admin-added gyms are approved; others start pending. */
+  addGym(input: GymInput): Promise<Gym>;
+  /** Vouch for a gym someone else added. */
+  approveGym(id: string): Promise<void>;
+  updateGym(id: string, input: GymInput): Promise<void>;
+  archiveGym(id: string): Promise<void>;
   /** Mark a week's group punishment done (or back to owed). */
   setPunishmentDone(weekStart: string, done: boolean): Promise<void>;
   updatePlayer(id: string, patch: Partial<Pick<Player, "name" | "avatar" | "color">>): Promise<void>;
   /** Notify when someone else checks in. */
   subscribe(cb: () => void): () => void;
 }
+
+export type GymInput = { name: string; latitude: number; longitude: number; radiusM: number };

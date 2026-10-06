@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_SETTINGS, SUPABASE_ANON_KEY, SUPABASE_URL } from "../config";
-import type { AppData, CheckIn, CheckInResult, Player, Punishment, Settings, WeekResult } from "../types";
-import type { Backend, Session } from "./types";
+import type { AppData, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
+import type { Backend, GymInput, Session } from "./types";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -22,6 +22,7 @@ const toCheckIn = (r: Row): CheckIn => ({
   accuracy: r.accuracy,
   distanceM: r.distance_m,
   radiusM: r.radius_m ?? null,
+  gymId: r.gym_id ?? null,
   gymName: r.gym_name,
   checkedInAt: new Date(r.checked_in_at).toISOString(),
 });
@@ -31,9 +32,6 @@ const toSettings = (r: Row | null): Settings =>
     ? {
         appTitle: r.app_title,
         appSubtitle: r.app_subtitle,
-        gymName: r.gym_name,
-        gymLatitude: r.gym_latitude,
-        gymLongitude: r.gym_longitude,
         checkInRadius: r.check_in_radius,
         weeklyRequirement: r.weekly_requirement,
         cooldownHours: Number(r.cooldown_hours),
@@ -45,14 +43,32 @@ const toSettings = (r: Row | null): Settings =>
 const SETTINGS_COLUMNS: Record<keyof Settings, string> = {
   appTitle: "app_title",
   appSubtitle: "app_subtitle",
-  gymName: "gym_name",
-  gymLatitude: "gym_latitude",
-  gymLongitude: "gym_longitude",
   checkInRadius: "check_in_radius",
   weeklyRequirement: "weekly_requirement",
   cooldownHours: "cooldown_hours",
   punishment: "punishment",
   timezone: "timezone",
+};
+
+const toGym = (r: Row): Gym => ({
+  id: r.id,
+  name: r.name,
+  latitude: r.latitude,
+  longitude: r.longitude,
+  radiusM: r.radius_m,
+  status: r.status,
+  createdBy: r.created_by,
+  approvedBy: r.approved_by,
+  archived: r.archived,
+  createdAt: r.created_at,
+});
+
+const GYM_ERRORS: Record<string, string> = {
+  own_gym: "Someone else has to approve a gym you added.",
+  forbidden: "Only the admin (or whoever added a still-pending gym) can do that.",
+  not_found: "That gym doesn't exist anymore.",
+  too_many: "That's a lot of gyms. Archive some first.",
+  not_authenticated: "Sign in first.",
 };
 
 /** Supabase caps a select at 1000 rows by default — page through. */
@@ -74,6 +90,14 @@ export function createSupabaseBackend(): Backend {
 
   const toSession = (s: { user: { id: string; email?: string } } | null): Session | null =>
     s ? { userId: s.user.id, email: s.user.email } : null;
+
+  async function gymRpc(fn: string, args: Record<string, unknown>): Promise<Row> {
+    const { data, error } = await sb.rpc(fn, args);
+    if (error) throw new Error(error.message);
+    const r = data as Row;
+    if (!r?.ok) throw new Error(GYM_ERRORS[r?.code] ?? "Couldn't update the gym.");
+    return r;
+  }
 
   return {
     mode: "supabase",
@@ -115,18 +139,20 @@ export function createSupabaseBackend(): Backend {
     },
 
     async load(): Promise<AppData> {
-      const [players, checkIns, settings, results, punishments] = await Promise.all([
+      const [players, checkIns, settings, results, punishments, gyms] = await Promise.all([
         selectAll(sb, "users", "*", "created_at"),
         selectAll(sb, "check_ins", "*", "checked_in_at"),
         sb.from("settings").select("*").eq("id", 1).maybeSingle(),
         selectAll(sb, "weekly_results", "*, weeks!inner(start_date)", "created_at"),
         selectAll(sb, "punishments", "*, weeks!inner(start_date)", "created_at"),
+        selectAll(sb, "gyms", "*", "created_at"),
       ]);
       if (settings.error) throw settings.error;
       return {
         players: players.map(toPlayer),
         checkIns: checkIns.map(toCheckIn),
         settings: toSettings(settings.data),
+        gyms: gyms.map(toGym),
         punishments: punishments.map(
           (r): Punishment => ({
             weekStart: r.weeks.start_date,
@@ -160,7 +186,9 @@ export function createSupabaseBackend(): Backend {
       if (r.ok) return { ok: true, checkIn: toCheckIn(r.check_in) };
       switch (r.code) {
         case "too_far":
-          return { ok: false, code: "too_far", distance: r.distance, radius: r.radius };
+          return { ok: false, code: "too_far", distance: r.distance, radius: r.radius, gymName: r.gym_name };
+        case "gym_pending":
+          return { ok: false, code: "gym_pending", gymName: r.gym_name };
         case "cooldown":
           return { ok: false, code: "cooldown", nextAllowedAt: new Date(r.next_allowed_at).toISOString() };
         case "low_accuracy":
@@ -176,6 +204,23 @@ export function createSupabaseBackend(): Backend {
       const { data, error } = await sb.from("settings").update(row).eq("id", 1).select("id");
       if (error) throw new Error(error.message);
       if (!data?.length) throw new Error("Only the club admin can change these settings.");
+    },
+
+    async addGym(input) {
+      const r = await gymRpc("add_gym", { p_name: input.name, p_latitude: input.latitude, p_longitude: input.longitude, p_radius: input.radiusM });
+      return toGym(r.gym);
+    },
+
+    async approveGym(id) {
+      await gymRpc("approve_gym", { p_gym: id });
+    },
+
+    async updateGym(id, input: GymInput) {
+      await gymRpc("update_gym", { p_gym: id, p_name: input.name, p_latitude: input.latitude, p_longitude: input.longitude, p_radius: input.radiusM });
+    },
+
+    async archiveGym(id) {
+      await gymRpc("archive_gym", { p_gym: id });
     },
 
     async setPunishmentDone(weekStart, done) {
@@ -195,6 +240,7 @@ export function createSupabaseBackend(): Backend {
         .channel("check-ins")
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "check_ins" }, () => cb())
         .on("postgres_changes", { event: "*", schema: "public", table: "punishments" }, () => cb())
+        .on("postgres_changes", { event: "*", schema: "public", table: "gyms" }, () => cb())
         .subscribe();
       return () => {
         sb.removeChannel(channel);

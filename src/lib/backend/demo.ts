@@ -4,11 +4,12 @@
 // preview, and it says so in the UI.
 import { DEFAULT_SETTINGS, PLAYER_COLORS } from "../config";
 import { distanceM } from "../geo";
-import type { AppData, CheckIn, CheckInResult, Player, Punishment, Settings, WeekResult } from "../types";
+import { matchGym } from "../gyms";
+import type { AppData, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
 import { addDays, localDate, midnightIn, weekKey, weekStartOf } from "../week";
-import type { Backend, Session } from "./types";
+import type { Backend, GymInput, Session } from "./types";
 
-const KEY = "tgci-demo-v4";
+const KEY = "tgci-demo-v5";
 const SESSION_KEY = "tgci-demo-session";
 
 type DemoDB = AppData;
@@ -35,13 +36,7 @@ function browserTz() {
 function seed(): DemoDB {
   const r = rng(42);
   const tz = browserTz();
-  const settings: Settings = {
-    ...DEFAULT_SETTINGS,
-    gymName: "Demo Iron Club",
-    gymLatitude: 40.7359,
-    gymLongitude: -73.9911,
-    timezone: tz,
-  };
+  const settings: Settings = { ...DEFAULT_SETTINGS, timezone: tz };
   const now = new Date();
   const thisWeek = weekKey(now, tz);
   const weeks = 9;
@@ -53,6 +48,18 @@ function seed(): DemoDB {
     { id: "p-mike", name: "Mike", avatar: "🦈", color: PLAYER_COLORS[1], isAdmin: false, createdAt: created },
     { id: "p-john", name: "John", avatar: "🐻", color: PLAYER_COLORS[2], isAdmin: false, createdAt: created },
   ];
+  const gym = (id: string, name: string, latitude: number, longitude: number, radiusM: number, createdBy: string, status: Gym["status"] = "approved"): Gym => ({
+    id, name, latitude, longitude, radiusM, status, createdBy,
+    approvedBy: status === "approved" ? "p-andrew" : null, archived: false, createdAt: created,
+  });
+  const gyms: Gym[] = [
+    gym("g-iron", "Demo Iron Club", 40.7359, -73.9911, 150, "p-andrew"),
+    gym("g-midtown", "Midtown Fitness (demo)", 40.7505, -73.9934, 120, "p-mike"),
+    gym("g-garage", "John's “Garage Gym”", 40.7295, -73.9965, 100, "p-john", "pending"),
+  ];
+  // Mike splits time between two gyms; everyone else lifts at Iron Club.
+  const gymFor = (userId: string) => (userId === "p-mike" && r() < 0.45 ? gyms[1] : gyms[0]);
+
   // Finished-week counts, oldest → newest. John flunked last week.
   const plan: Record<string, number[]> = {
     "p-andrew": [5, 6, 5, 4, 5, 5, 6, 5, 5],
@@ -64,18 +71,20 @@ function seed(): DemoDB {
   const at = (date: string, hour: number, userId: string) => {
     const t = new Date(midnightIn(date, tz).getTime() + hour * 3600000 + Math.floor(r() * 50) * 60000);
     if (t >= now) return;
+    const g = gymFor(userId);
     const jitter = () => (r() - 0.5) * 0.0007;
-    const lat = settings.gymLatitude! + jitter();
-    const lng = settings.gymLongitude! + jitter();
+    const lat = g.latitude + jitter();
+    const lng = g.longitude + jitter();
     checkIns.push({
       id: uid(r),
       userId,
       latitude: lat,
       longitude: lng,
       accuracy: 8 + Math.round(r() * 20),
-      distanceM: Math.round(distanceM(lat, lng, settings.gymLatitude!, settings.gymLongitude!)),
-      radiusM: settings.checkInRadius,
-      gymName: settings.gymName,
+      distanceM: Math.round(distanceM(lat, lng, g.latitude, g.longitude)),
+      radiusM: g.radiusM,
+      gymId: g.id,
+      gymName: g.name,
       checkedInAt: t.toISOString(),
     });
   };
@@ -101,7 +110,7 @@ function seed(): DemoDB {
   }
 
   checkIns.sort((a, b) => a.checkedInAt.localeCompare(b.checkedInAt));
-  const db: DemoDB = { players, checkIns, results: [], punishments: [], settings };
+  const db: DemoDB = { players, checkIns, results: [], punishments: [], gyms, settings };
   freeze(db, now);
   // Older debts were paid off; the most recent two are still owed.
   const payers = ["p-mike", "p-andrew", "p-john"];
@@ -149,7 +158,7 @@ function freeze(db: DemoDB, now: Date) {
 function read(): DemoDB {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { punishments: [], ...JSON.parse(raw) };
+    if (raw) return { punishments: [], gyms: [], ...JSON.parse(raw) };
   } catch {
     /* fall through to a fresh seed */
   }
@@ -220,10 +229,13 @@ export function createDemoBackend(): Backend {
       if (!session) return { ok: false, code: "not_authenticated" };
       const db = read();
       const s = db.settings;
-      if (s.gymLatitude == null || s.gymLongitude == null) return { ok: false, code: "no_gym" };
       if (accuracy != null && accuracy > 1000) return { ok: false, code: "low_accuracy", accuracy: Math.round(accuracy) };
-      const d = distanceM(latitude, longitude, s.gymLatitude, s.gymLongitude);
-      if (d > s.checkInRadius) return { ok: false, code: "too_far", distance: Math.round(d), radius: s.checkInRadius };
+      const m = matchGym(db.gyms, latitude, longitude);
+      if (m.kind === "none") return { ok: false, code: "no_gym" };
+      if (m.kind === "pending") return { ok: false, code: "gym_pending", gymName: m.gym.name };
+      if (m.kind === "too_far")
+        return { ok: false, code: "too_far", distance: Math.round(m.distance), radius: m.gym.radiusM, gymName: m.gym.name };
+      const d = m.distance;
       const last = db.checkIns.filter((c) => c.userId === session.userId).at(-1);
       const next = last ? new Date(last.checkedInAt).getTime() + s.cooldownHours * 3600000 : 0;
       if (next > Date.now()) return { ok: false, code: "cooldown", nextAllowedAt: new Date(next).toISOString() };
@@ -234,8 +246,9 @@ export function createDemoBackend(): Backend {
         longitude,
         accuracy,
         distanceM: Math.round(d * 10) / 10,
-        radiusM: s.checkInRadius,
-        gymName: s.gymName,
+        radiusM: m.gym.radiusM,
+        gymId: m.gym.id,
+        gymName: m.gym.name,
         checkedInAt: new Date().toISOString(),
       };
       db.checkIns.push(checkIn);
@@ -245,6 +258,58 @@ export function createDemoBackend(): Backend {
     async updateSettings(patch) {
       const db = read();
       db.settings = { ...db.settings, ...patch };
+      write(db);
+    },
+    async addGym(input: GymInput) {
+      const session = currentSession();
+      if (!session) throw new Error("Sign in first.");
+      const db = read();
+      const admin = db.players.find((p) => p.id === session.userId)?.isAdmin ?? false;
+      const g: Gym = {
+        id: crypto.randomUUID?.() ?? String(Date.now()),
+        name: input.name.trim(),
+        latitude: input.latitude,
+        longitude: input.longitude,
+        radiusM: input.radiusM,
+        status: admin ? "approved" : "pending",
+        createdBy: session.userId,
+        approvedBy: admin ? session.userId : null,
+        archived: false,
+        createdAt: new Date().toISOString(),
+      };
+      db.gyms.push(g);
+      write(db);
+      return g;
+    },
+    async approveGym(id) {
+      const session = currentSession();
+      const db = read();
+      const g = db.gyms.find((x) => x.id === id && !x.archived);
+      if (!session || !g) throw new Error("That gym doesn't exist anymore.");
+      if (g.createdBy === session.userId) throw new Error("Someone else has to approve a gym you added.");
+      g.status = "approved";
+      g.approvedBy = session.userId;
+      write(db);
+    },
+    async updateGym(id, input) {
+      const session = currentSession();
+      const db = read();
+      const g = db.gyms.find((x) => x.id === id && !x.archived);
+      if (!session || !g) throw new Error("That gym doesn't exist anymore.");
+      const admin = db.players.find((p) => p.id === session.userId)?.isAdmin;
+      if (!admin && !(g.createdBy === session.userId && g.status === "pending"))
+        throw new Error("Only the admin (or whoever added a still-pending gym) can do that.");
+      Object.assign(g, { name: input.name.trim(), latitude: input.latitude, longitude: input.longitude, radiusM: input.radiusM });
+      write(db);
+    },
+    async archiveGym(id) {
+      const session = currentSession();
+      const db = read();
+      const g = db.gyms.find((x) => x.id === id && !x.archived);
+      if (!session || !g) throw new Error("That gym doesn't exist anymore.");
+      const admin = db.players.find((p) => p.id === session.userId)?.isAdmin;
+      if (!admin && g.createdBy !== session.userId) throw new Error("Only the admin or whoever added it can remove a gym.");
+      g.archived = true;
       write(db);
     },
     async setPunishmentDone(weekStart, done) {

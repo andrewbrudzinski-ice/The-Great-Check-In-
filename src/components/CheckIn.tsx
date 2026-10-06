@@ -3,7 +3,9 @@
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
+import Link from "next/link";
 import { cooldownRemaining } from "@/lib/game";
+import { approvedGyms } from "@/lib/gyms";
 import { formatDistance } from "@/lib/geo";
 import { useGame, type CheckInOutcome } from "@/lib/store";
 import { line } from "@/lib/trash";
@@ -23,7 +25,8 @@ export function CheckInButton() {
 
   const s = data.settings;
   const cooldown = me ? cooldownRemaining(data.checkIns, me.id, s.cooldownHours, now) : 0;
-  const noGym = s.gymLatitude == null || s.gymLongitude == null;
+  const gyms = approvedGyms(data.gyms);
+  const noGym = gyms.length === 0;
   const busy = stage !== "idle";
   const mine = game.standings.find((r) => r.player.id === me?.id);
 
@@ -80,7 +83,13 @@ export function CheckInButton() {
       </div>
       <p className="mt-2.5 text-center text-xs text-muted">
         {noGym ? (
-          <>The gym location isn&apos;t set yet. An admin needs to set it in Settings.</>
+          <>
+            No gyms yet.{" "}
+            <Link href="/gyms" className="text-ink-2 underline underline-offset-2">
+              Add yours
+            </Link>{" "}
+            to start checking in.
+          </>
         ) : cooldown > 0 ? (
           <>
             <ClockIcon size={12} className="mr-1 inline -translate-y-px" />
@@ -88,7 +97,18 @@ export function CheckInButton() {
           </>
         ) : (
           <>
-            Must be within {s.checkInRadius} m of <span className="text-ink-2">{s.gymName}</span>
+            {gyms.length === 1 ? (
+              <>
+                Must be within {gyms[0].radiusM} m of <span className="text-ink-2">{gyms[0].name}</span>
+              </>
+            ) : (
+              <>
+                Counts at any of your{" "}
+                <Link href="/gyms" className="text-ink-2 underline-offset-2 hover:underline">
+                  {gyms.length} gyms
+                </Link>
+              </>
+            )}
             {mode === "demo" && " · demo"}
           </>
         )}
@@ -100,7 +120,7 @@ export function CheckInButton() {
         required={s.weeklyRequirement}
         tz={s.timezone}
       />
-      <FailureSheet outcome={failure} onClose={() => setFailure(null)} gymName={s.gymName} tz={s.timezone} demo={mode === "demo"} />
+      <FailureSheet outcome={failure} onClose={() => setFailure(null)} tz={s.timezone} demo={mode === "demo"} />
     </>
   );
 }
@@ -263,13 +283,11 @@ function SuccessOverlay({
 function FailureSheet({
   outcome,
   onClose,
-  gymName,
   tz,
   demo,
 }: {
   outcome: CheckInOutcome | null;
   onClose: () => void;
-  gymName: string;
   tz: string;
   demo: boolean;
 }) {
@@ -303,13 +321,29 @@ function FailureSheet({
         title = "Nice try.";
         body = (
           <>
-            You&apos;re <b className="text-ink">{formatDistance(r.distance)}</b> from {gymName}. You need to be within{" "}
-            {r.radius} m. The couch doesn&apos;t count.
-            {demo && (
-              <span className="mt-3 block text-xs text-muted">
-                Demo tip: move the gym to your current spot in Settings → Gym → “Use my location”.
-              </span>
-            )}
+            You&apos;re <b className="text-ink">{formatDistance(r.distance)}</b> from the nearest gym, {r.gymName}. You need to be
+            within {r.radius} m. The couch doesn&apos;t count.
+            <span className="mt-3 block text-xs text-muted">
+              At a gym that isn&apos;t listed?{" "}
+              <Link href="/gyms" className="text-ink-2 underline underline-offset-2" onClick={onClose}>
+                Add it
+              </Link>{" "}
+              — another player has to approve it.
+              {demo && " (Demo: you can approve it yourself by signing in as someone else.)"}
+            </span>
+          </>
+        );
+        break;
+      case "gym_pending":
+        emoji = "⏳";
+        title = "Almost.";
+        body = (
+          <>
+            You&apos;re at <b className="text-ink">{r.gymName}</b>, but it&apos;s still waiting for another player to approve it.
+            Once someone vouches for it, check-ins here count.{" "}
+            <Link href="/gyms" className="text-ink-2 underline underline-offset-2" onClick={onClose}>
+              See gyms
+            </Link>
           </>
         );
         break;
@@ -330,8 +364,15 @@ function FailureSheet({
         break;
       case "no_gym":
         emoji = "🗺️";
-        title = "No gym configured";
-        body = <>An admin needs to set the gym location in Settings first.</>;
+        title = "No gyms yet";
+        body = (
+          <>
+            Add your gym first.{" "}
+            <Link href="/gyms" className="text-ink-2 underline underline-offset-2" onClick={onClose}>
+              Go to Gyms
+            </Link>
+          </>
+        );
         break;
       case "not_authenticated":
       case "no_profile":

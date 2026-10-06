@@ -10,7 +10,8 @@ A private, mobile-first competition app for three friends who lift together. Eve
 - **Punishments** (tracker): what the group owes, who caused each one, and a **We did it** button. Done items record who marked them and when, and can be undone.
 - **History**: every finished week with an OWED/DONE badge, and a replayable "WEEK OVER" reveal of who sank the group.
 - **Profile**: total check-ins, streaks, weeks completed/failed, punishments, a 12-week chart.
-- **Settings**: players, avatars, gym location/radius, weekly requirement, cooldown, punishment, timezone, title.
+- **Gyms**: every gym the group uses. Anyone can add one ("Use my location" while standing inside). A gym added by a non-admin stays **pending** until another player approves it.
+- **Settings**: players, avatars, weekly requirement, cooldown, punishment, timezone, title.
 
 Stack: Next.js 16 (static export) · React 19 · TypeScript · Tailwind CSS 4 · Supabase (auth + Postgres) · Leaflet · Motion.
 
@@ -23,7 +24,7 @@ npm install
 npm run dev        # http://localhost:3000
 ```
 
-With no Supabase credentials the app runs in **demo mode**. Data lives in your browser's localStorage, comes pre-seeded with ~9 weeks of fake history, and you can play as any player. Demo mode is only for previewing and is not secure. To check in from where you are, open Settings → Gym → **Use my location**.
+With no Supabase credentials the app runs in **demo mode**. Data lives in your browser's localStorage, comes pre-seeded with ~9 weeks of fake history, and you can play as any player. Demo mode is only for previewing and is not secure. To check in from where you are, open Gyms → **Add gym** → **Use my location**. As Andrew (the demo admin) the gym is approved right away. As anyone else, sign in as another player to approve it.
 
 ```bash
 npm test           # game-logic tests (week math, standings, streaks, history)
@@ -46,7 +47,7 @@ npm run build      # static site in ./out
    NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
    ```
 6. **First sign-up becomes admin.** The admin edits club settings. Everyone can edit their own name, avatar and color.
-7. **Set the gym**: stand inside the gym, open Settings → Gym → **Use my location**, then Save. Adjust the radius if needed (150 m default).
+7. **Add your gyms**: stand inside each gym, open Map → *manage* (or Settings → Gyms) → **Add gym** → **Use my location**. The admin's gyms are approved right away; anyone else's need another player to approve them. If you set up the old single-gym version, re-running the schema turns that gym into the first approved gym.
 
 ## Deploy to Netlify
 
@@ -69,11 +70,13 @@ The browser never decides whether a check-in counts. Tapping **CHECK IN** reads 
 
 - requires an authenticated user (`auth.uid()`). You can only ever check in as yourself.
 - rejects missing/invalid coordinates and wildly imprecise fixes (> 1 km accuracy).
-- computes the distance to the configured gym **server-side** and rejects anything outside the radius.
+- computes the distance to every approved gym **server-side**, matches the nearest one you're inside, and rejects anything outside all of them. If you're standing in a gym that's still pending, it says so.
 - enforces the cooldown (default 4 h) under a per-player advisory lock, so double taps can't sneak through.
 - stamps `checked_in_at` with the **database clock**.
 
 Row-level security lets players read everything but write **no** check-ins directly. There is no insert policy, so the function is the only way in. Players can't promote themselves to admin either (column-level grants).
+
+Gyms change only through `add_gym`, `approve_gym`, `update_gym` and `archive_gym`. Nobody can approve a gym they added. Once a gym is approved, only the admin can move it, so nobody can drag it over to their couch. Removed gyms are archived, so past check-ins still count.
 
 This won't stop a determined GPS spoofer, but it makes casual cheating annoying. That's the bar for a friendly bet.
 
@@ -98,11 +101,12 @@ Location is read only when someone taps Check In (or an admin taps "Use my locat
 | table | purpose |
 |---|---|
 | `users` | player profile (id = auth user id), name, avatar (emoji or image URL), color, is_admin |
-| `check_ins` | one row per verified visit: lat/lng, accuracy, distance, gym name, server timestamp |
+| `gyms` | name, lat/lng, radius, `pending`/`approved`, who added and who approved it, archived flag |
+| `check_ins` | one row per verified visit: lat/lng, accuracy, matched gym (id + name), distance, radius in force, server timestamp |
 | `weeks` | one row per finished week (Monday start date) |
 | `weekly_results` | frozen per-player result for each week |
 | `punishments` | one group punishment per failed week: text, `owed`/`done`, completed_at, completed_by |
-| `settings` | single row: title, subtitle, gym name/lat/lng, radius, requirement, cooldown, punishment, timezone |
+| `settings` | single row: title, subtitle, default gym radius, requirement, cooldown, punishment, timezone (the old `gym_*` columns are only read once, to migrate) |
 | `app_private.config` | invite code (not exposed through the API) |
 
 Nothing in the UI hard-codes three players. The board just looks best with three.

@@ -1,12 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { Receipt } from "@/components/Receipt";
 import { PageTitle } from "@/components/ui";
 import { formatDistance } from "@/lib/geo";
+import { approvedGyms } from "@/lib/gyms";
 import { useGame } from "@/lib/store";
 import { formatDateTime, weekKey } from "@/lib/week";
 
@@ -43,6 +45,7 @@ function GymMap() {
   );
   const list = useMemo(() => visible.slice().reverse().slice(0, 60), [visible]);
   const byId = (id: string) => data.players.find((p) => p.id === id);
+  const gymCount = approvedGyms(data.gyms).length;
   const selectedCheckIn = visible.find((c) => c.id === selected) ?? null;
 
   const chip = (active: boolean) =>
@@ -53,7 +56,11 @@ function GymMap() {
   return (
     <div>
       <PageTitle
-        eyebrow={data.settings.gymName}
+        eyebrow={
+          <Link href="/gyms" className="hover:text-ink">
+            {gymCount} gym{gymCount === 1 ? "" : "s"} · manage →
+          </Link>
+        }
         title="Gym Map"
         right={
           <div className="flex rounded-full bg-surface-2 p-0.5 text-xs font-semibold">
@@ -82,7 +89,8 @@ function GymMap() {
         <CheckInMap
           checkIns={visible}
           players={data.players}
-          settings={data.settings}
+          gyms={data.gyms}
+          timezone={tz}
           selectedId={selected}
           onSelect={setSelected}
           className="h-full w-full"

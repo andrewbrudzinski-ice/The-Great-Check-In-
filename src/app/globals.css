@@ -121,6 +121,8 @@ input, textarea, select {
 
 /* ---- Leaflet dark skin ---- */
 .leaflet-container {
+  /* keep Leaflet's z-index 400+ panes from escaping over sheets and modals */
+  isolation: isolate;
   background: #0d0f12 !important;
   font-family: var(--font-sans) !important;
 }

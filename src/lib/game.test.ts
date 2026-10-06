@@ -30,14 +30,14 @@ const players: Player[] = ["A", "B", "C"].map((n, i) => ({
 
 function ci(userId: string, date: string, hour = 12): CheckIn {
   const t = new Date(midnightIn(date, tz).getTime() + hour * 3600000).toISOString();
-  return { id: userId + t, userId, latitude: 0, longitude: 0, accuracy: 5, distanceM: 1, radiusM: 150, gymName: "G", checkedInAt: t };
+  return { id: userId + t, userId, latitude: 0, longitude: 0, accuracy: 5, distanceM: 1, radiusM: 150, gymId: "g", gymName: "G", checkedInAt: t };
 }
 
 function data(checkIns: CheckIn[]): AppData {
   return {
-    players, checkIns, results: [], punishments: [],
+    players, checkIns, results: [], punishments: [], gyms: [],
     settings: {
-      appTitle: "", appSubtitle: "", gymName: "G", gymLatitude: 0, gymLongitude: 0, checkInRadius: 150,
+      appTitle: "", appSubtitle: "", checkInRadius: 150,
       weeklyRequirement: 5, cooldownHours: 4, punishment: "Lunch", timezone: tz,
     },
   };

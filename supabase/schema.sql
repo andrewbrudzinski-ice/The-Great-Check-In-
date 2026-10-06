@@ -63,6 +63,32 @@ create table if not exists public.settings (
 insert into public.settings (id) values (1) on conflict (id) do nothing;
 
 -- ----------------------------------------------------------------------------
+-- Gyms. Players can use different gyms; a check-in counts at any approved one.
+-- A gym added by a non-admin stays 'pending' until ANOTHER player approves it,
+-- so nobody can quietly register their living room.
+-- (settings.gym_* columns are the pre-multi-gym location, migrated below.)
+-- ----------------------------------------------------------------------------
+create table if not exists public.gyms (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null check (char_length(name) between 1 and 60),
+  latitude    double precision not null check (latitude between -90 and 90),
+  longitude   double precision not null check (longitude between -180 and 180),
+  radius_m    int not null default 150 check (radius_m between 25 and 1000),
+  status      text not null default 'pending' check (status in ('pending', 'approved')),
+  created_by  uuid references public.users (id) on delete set null,
+  approved_by uuid references public.users (id) on delete set null,
+  archived    boolean not null default false,
+  created_at  timestamptz not null default now()
+);
+
+-- One-time migration of the old single gym setting.
+insert into public.gyms (name, latitude, longitude, radius_m, status)
+select gym_name, gym_latitude, gym_longitude, least(greatest(check_in_radius, 25), 1000), 'approved'
+from public.settings
+where id = 1 and gym_latitude is not null and gym_longitude is not null
+  and not exists (select 1 from public.gyms);
+
+-- ----------------------------------------------------------------------------
 -- Check-ins (one row per verified visit — never continuous location)
 -- ----------------------------------------------------------------------------
 create table if not exists public.check_ins (
@@ -77,6 +103,7 @@ create table if not exists public.check_ins (
 );
 -- radius in force when the check-in was verified (added later; nullable for old rows)
 alter table public.check_ins add column if not exists radius_m int;
+alter table public.check_ins add column if not exists gym_id uuid references public.gyms (id) on delete set null;
 create index if not exists check_ins_user_time on public.check_ins (user_id, checked_in_at desc);
 create index if not exists check_ins_time on public.check_ins (checked_in_at desc);
 
@@ -123,6 +150,7 @@ alter table public.check_ins      enable row level security;
 alter table public.weeks          enable row level security;
 alter table public.weekly_results enable row level security;
 alter table public.punishments    enable row level security;
+alter table public.gyms           enable row level security;
 
 create or replace function public.is_admin() returns boolean
 language sql stable security definer set search_path = public as $$
@@ -164,6 +192,11 @@ create policy "players read check-ins" on public.check_ins
 drop policy if exists "players read weeks" on public.weeks;
 create policy "players read weeks" on public.weeks
   for select to authenticated using (public.is_player());
+
+drop policy if exists "players read gyms" on public.gyms;
+create policy "players read gyms" on public.gyms
+  for select to authenticated using (public.is_player());
+-- No write policies: gyms change only through the gym functions below.
 
 drop policy if exists "players read punishments" on public.punishments;
 create policy "players read punishments" on public.punishments
@@ -232,6 +265,8 @@ declare
   d    double precision;
   last timestamptz;
   rec  public.check_ins;
+  gym  record;
+  pending_name text;
 begin
   if uid is null then
     return json_build_object('ok', false, 'code', 'not_authenticated');
@@ -245,19 +280,38 @@ begin
   end if;
 
   select * into s from public.settings where id = 1;
-  if s.gym_latitude is null or s.gym_longitude is null then
-    return json_build_object('ok', false, 'code', 'no_gym');
-  end if;
 
   -- Wildly imprecise fixes (IP-based desktop location etc.) are rejected.
   if p_accuracy is not null and p_accuracy > 1000 then
     return json_build_object('ok', false, 'code', 'low_accuracy', 'accuracy', round(p_accuracy));
   end if;
 
-  d := public.distance_m(p_latitude, p_longitude, s.gym_latitude, s.gym_longitude);
-  if d > s.check_in_radius then
+  if not exists (select 1 from public.gyms where status = 'approved' and not archived) then
+    return json_build_object('ok', false, 'code', 'no_gym');
+  end if;
+
+  -- Nearest approved gym you're inside of; failing that, the nearest one.
+  select g.*, public.distance_m(p_latitude, p_longitude, g.latitude, g.longitude) as d
+    into gym
+    from public.gyms g
+   where g.status = 'approved' and not g.archived
+   order by (public.distance_m(p_latitude, p_longitude, g.latitude, g.longitude) <= g.radius_m) desc,
+            public.distance_m(p_latitude, p_longitude, g.latitude, g.longitude)
+   limit 1;
+  d := gym.d;
+
+  if d > gym.radius_m then
+    -- Standing in a gym that's still awaiting approval? Say so.
+    select g.name into pending_name
+      from public.gyms g
+     where g.status = 'pending' and not g.archived
+       and public.distance_m(p_latitude, p_longitude, g.latitude, g.longitude) <= g.radius_m
+     limit 1;
+    if pending_name is not null then
+      return json_build_object('ok', false, 'code', 'gym_pending', 'gym_name', pending_name);
+    end if;
     return json_build_object('ok', false, 'code', 'too_far',
-                             'distance', round(d), 'radius', s.check_in_radius);
+                             'distance', round(d), 'radius', gym.radius_m, 'gym_name', gym.name);
   end if;
 
   -- Serialize per player so two fast taps can't both slip past the cooldown.
@@ -269,8 +323,8 @@ begin
                              'next_allowed_at', last + make_interval(secs => s.cooldown_hours * 3600));
   end if;
 
-  insert into public.check_ins (user_id, latitude, longitude, accuracy, distance_m, radius_m, gym_name)
-  values (uid, p_latitude, p_longitude, p_accuracy, round(d::numeric, 1), s.check_in_radius, s.gym_name)
+  insert into public.check_ins (user_id, latitude, longitude, accuracy, distance_m, radius_m, gym_id, gym_name)
+  values (uid, p_latitude, p_longitude, p_accuracy, round(d::numeric, 1), gym.radius_m, gym.id, gym.name)
   returning * into rec;
 
   return json_build_object('ok', true, 'check_in', row_to_json(rec));
@@ -341,6 +395,93 @@ revoke all on function public.finalize_past_weeks() from public, anon;
 grant execute on function public.finalize_past_weeks() to authenticated;
 
 -- ----------------------------------------------------------------------------
+-- Gym management
+-- ----------------------------------------------------------------------------
+create or replace function public.add_gym(p_name text, p_latitude double precision,
+                                          p_longitude double precision, p_radius int default 150)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  rec public.gyms;
+begin
+  if uid is null or not public.is_player() then
+    return json_build_object('ok', false, 'code', 'not_authenticated');
+  end if;
+  if (select count(*) from public.gyms where not archived) >= 25 then
+    return json_build_object('ok', false, 'code', 'too_many');
+  end if;
+  insert into public.gyms (name, latitude, longitude, radius_m, status, created_by, approved_by)
+  values (trim(p_name), p_latitude, p_longitude, p_radius,
+          case when public.is_admin() then 'approved' else 'pending' end,
+          uid,
+          case when public.is_admin() then uid end)
+  returning * into rec;
+  return json_build_object('ok', true, 'gym', row_to_json(rec));
+end $$;
+
+-- Someone other than the person who added it has to vouch for a gym.
+create or replace function public.approve_gym(p_gym uuid)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  g   public.gyms;
+begin
+  if uid is null or not public.is_player() then
+    return json_build_object('ok', false, 'code', 'not_authenticated');
+  end if;
+  select * into g from public.gyms where id = p_gym and not archived;
+  if g.id is null then return json_build_object('ok', false, 'code', 'not_found'); end if;
+  if g.created_by = uid then return json_build_object('ok', false, 'code', 'own_gym'); end if;
+  update public.gyms set status = 'approved', approved_by = uid where id = p_gym;
+  return json_build_object('ok', true);
+end $$;
+
+-- Admin can edit any gym; the creator can edit theirs only while pending
+-- (moving an approved gym would let someone relocate it to their couch).
+create or replace function public.update_gym(p_gym uuid, p_name text, p_latitude double precision,
+                                             p_longitude double precision, p_radius int)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  g   public.gyms;
+begin
+  select * into g from public.gyms where id = p_gym and not archived;
+  if g.id is null then return json_build_object('ok', false, 'code', 'not_found'); end if;
+  if not (public.is_admin() or (g.created_by = uid and g.status = 'pending')) then
+    return json_build_object('ok', false, 'code', 'forbidden');
+  end if;
+  update public.gyms
+     set name = trim(p_name), latitude = p_latitude, longitude = p_longitude, radius_m = p_radius
+   where id = p_gym;
+  return json_build_object('ok', true);
+end $$;
+
+-- Archive instead of delete so past check-ins keep their gym.
+create or replace function public.archive_gym(p_gym uuid)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  g   public.gyms;
+begin
+  select * into g from public.gyms where id = p_gym and not archived;
+  if g.id is null then return json_build_object('ok', false, 'code', 'not_found'); end if;
+  if not (public.is_admin() or g.created_by = uid) then
+    return json_build_object('ok', false, 'code', 'forbidden');
+  end if;
+  update public.gyms set archived = true where id = p_gym;
+  return json_build_object('ok', true);
+end $$;
+
+revoke all on function public.add_gym(text, double precision, double precision, int) from public, anon;
+revoke all on function public.approve_gym(uuid) from public, anon;
+revoke all on function public.update_gym(uuid, text, double precision, double precision, int) from public, anon;
+revoke all on function public.archive_gym(uuid) from public, anon;
+grant execute on function public.add_gym(text, double precision, double precision, int) to authenticated;
+grant execute on function public.approve_gym(uuid) to authenticated;
+grant execute on function public.update_gym(uuid, text, double precision, double precision, int) to authenticated;
+grant execute on function public.archive_gym(uuid) to authenticated;
+
+-- ----------------------------------------------------------------------------
 -- Punishment tracker: any player can mark the group punishment done (or undo).
 -- ----------------------------------------------------------------------------
 create or replace function public.set_punishment_done(p_week_start date, p_done boolean)
@@ -392,6 +533,10 @@ begin
     end;
     begin
       alter publication supabase_realtime add table public.punishments;
+    exception when duplicate_object then null;
+    end;
+    begin
+      alter publication supabase_realtime add table public.gyms;
     exception when duplicate_object then null;
     end;
   end if;
