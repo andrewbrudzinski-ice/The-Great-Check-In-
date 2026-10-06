@@ -11,8 +11,9 @@ export interface Backend {
   mode: "supabase" | "demo";
   getSession(): Promise<Session | null>;
   onAuthChange(cb: (s: Session | null) => void): () => void;
-  signIn(email: string, password: string): Promise<void>;
-  signUp(input: { email: string; password: string; name: string; inviteCode: string }): Promise<{ needsConfirmation: boolean }>;
+  /** `name` is the player's sign-in name (or, for older accounts, an email). */
+  signIn(name: string, password: string): Promise<void>;
+  signUp(input: { name: string; password: string; inviteCode: string }): Promise<{ needsConfirmation: boolean }>;
   signOut(): Promise<void>;
   /** Freeze any finished weeks into weekly_results. Idempotent. */
   finalizeWeeks(): Promise<void>;

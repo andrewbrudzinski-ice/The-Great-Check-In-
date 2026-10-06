@@ -40,13 +40,13 @@ npm run build      # static site in ./out
    - Set an invite code: `update app_private.config set invite_code = 'something-secret';`. Sign-ups must enter it.
    - Or create the three accounts yourself (*Authentication → Users → Add user*) and turn off *Allow new users to sign up*.
    - Once all three of you are in, it's a good idea to disable sign-ups either way.
-4. **Email confirmation**: Supabase sends a confirmation email by default. For a 3-person club you can switch it off under *Authentication → Sign In / Providers → Email*.
+4. **Turn off email confirmation (required)**: go to *Authentication → Sign In / Providers → Email* and switch off **Confirm email**. Players sign in with a **name + password**. Behind the scenes each name maps to a placeholder address on the reserved `.invalid` domain, which can never receive mail, so a confirmation email could never arrive. Forgotten passwords are reset by the admin under *Authentication → Users*.
 5. **Env vars**: copy `.env.example` to `.env.local` and fill in the values from *Project Settings → API*:
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
    ```
-6. **First sign-up becomes admin.** The admin edits club settings. Everyone can edit their own name, avatar and color.
+6. **First sign-up becomes admin.** Sign up with your name and a password. The admin edits club settings. Everyone can edit their own name, avatar and color.
 7. **Add your gyms**: stand inside each gym, open Map → *manage* (or Settings → Gyms) → **Add gym** → **Use my location**. The admin's gyms are approved right away; anyone else's need another player to approve them. If you set up the old single-gym version, re-running the schema turns that gym into the first approved gym.
 
 ## Deploy to Netlify
