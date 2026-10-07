@@ -30,7 +30,7 @@ const players: Player[] = ["A", "B", "C"].map((n, i) => ({
 
 function ci(userId: string, date: string, hour = 12): CheckIn {
   const t = new Date(midnightIn(date, tz).getTime() + hour * 3600000).toISOString();
-  return { id: userId + t, userId, latitude: 0, longitude: 0, accuracy: 5, distanceM: 1, radiusM: 150, gymId: "g", gymName: "G", checkedInAt: t };
+  return { id: userId + t, userId, latitude: 0, longitude: 0, accuracy: 5, distanceM: 1, radiusM: 150, gymId: "g", gymName: "G", manual: false, addedBy: null, note: null, checkedInAt: t };
 }
 
 function data(checkIns: CheckIn[]): AppData {

@@ -32,6 +32,15 @@ if (typeof window !== "undefined") {
 }
 
 export type Platform = "ios" | "android" | "desktop";
+/** Every iPhone browser is WebKit, but each puts the Share button somewhere else. */
+export type IosBrowser = "safari" | "chrome" | "other";
+
+function detectIosBrowser(): IosBrowser {
+  const ua = navigator.userAgent;
+  if (/CriOS/i.test(ua)) return "chrome";
+  if (/FxiOS|EdgiOS|OPiOS|GSA\//i.test(ua)) return "other";
+  return "safari";
+}
 
 function detectPlatform(): Platform {
   const ua = navigator.userAgent;
@@ -57,9 +66,9 @@ export function useInstall() {
   const canPrompt = useSyncExternalStore(subscribe, () => deferred !== null, () => false);
   const justInstalled = useSyncExternalStore(subscribe, () => installedNow, () => false);
   // Platform/standalone only exist in the browser; resolve after mount.
-  const [env, setEnv] = useState<{ platform: Platform; standalone: boolean } | null>(null);
+  const [env, setEnv] = useState<{ platform: Platform; iosBrowser: IosBrowser; standalone: boolean } | null>(null);
   useEffect(() => {
-    setEnv({ platform: detectPlatform(), standalone: isStandalone() });
+    setEnv({ platform: detectPlatform(), iosBrowser: detectIosBrowser(), standalone: isStandalone() });
   }, []);
 
   async function prompt(): Promise<boolean> {
@@ -75,6 +84,7 @@ export function useInstall() {
   return {
     ready: env !== null,
     platform: env?.platform ?? "desktop",
+    iosBrowser: env?.iosBrowser ?? "safari",
     installed: !!env?.standalone || justInstalled,
     canPrompt,
     prompt,

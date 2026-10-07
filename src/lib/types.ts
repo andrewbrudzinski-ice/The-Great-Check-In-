@@ -20,6 +20,10 @@ export type CheckIn = {
   /** The gym the server matched this check-in to. */
   gymId: string | null;
   gymName: string;
+  /** Added by the admin for someone who forgot — no GPS behind it. */
+  manual: boolean;
+  addedBy: string | null;
+  note: string | null;
   /** Server timestamp, ISO 8601. */
   checkedInAt: string;
 };

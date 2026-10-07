@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
+import { AdminCheckIn } from "@/components/AdminCheckIn";
 import { Avatar } from "@/components/Avatar";
 import { InstallRow } from "@/components/InstallApp";
 import { ChevronLeft } from "@/components/Icons";
@@ -48,6 +49,13 @@ export default function SettingsPage() {
         )}
         <InstallRow />
       </section>
+
+      {me?.isAdmin && (
+        <section className="mb-10">
+          <SectionTitle>Check someone in</SectionTitle>
+          <AdminCheckIn />
+        </section>
+      )}
 
       <section>
         <SectionTitle>Players</SectionTitle>

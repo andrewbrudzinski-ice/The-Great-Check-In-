@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { STATUS_META, type Status } from "@/lib/game";
 import { FlameIcon, XIcon } from "./Icons";
 
@@ -128,33 +128,72 @@ export function StreakBadge({ weeks, size = "sm" }: { weeks: number; size?: "sm"
   );
 }
 
-/** Bottom sheet modal. */
+/**
+ * The part of the screen actually visible. On iPhone Safari the keyboard and
+ * toolbars shrink this without resizing the page, so fixed-bottom UI pinned
+ * to the page ends up floating mid-screen or hidden behind the keyboard.
+ */
+function useVisibleViewport(active: boolean) {
+  const [vp, setVp] = useState<{ top: number; height: number } | null>(null);
+  useEffect(() => {
+    if (!active) return;
+    const vv = window.visualViewport;
+    const update = () => setVp(vv ? { top: vv.offsetTop, height: vv.height } : { top: 0, height: window.innerHeight });
+    update();
+    vv?.addEventListener("resize", update);
+    vv?.addEventListener("scroll", update);
+    window.addEventListener("resize", update);
+    return () => {
+      vv?.removeEventListener("resize", update);
+      vv?.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [active]);
+  return vp;
+}
+
+/** Bottom sheet modal that always fits the visible screen. */
 export function Sheet({ open, onClose, children }: { open: boolean; onClose: () => void; children: ReactNode }) {
+  const vp = useVisibleViewport(open);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Keep the page behind from scrolling while the sheet is up.
+    const html = document.documentElement;
+    const prev = html.style.overflow;
+    html.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      html.style.overflow = prev;
+    };
   }, [open, onClose]);
   return (
     <AnimatePresence>
       {open && (
-        <motion.div className="fixed inset-0 z-50 flex items-end justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        <motion.div
+          className="fixed inset-x-0 z-50 flex items-end justify-center"
+          style={vp ? { top: vp.top, height: vp.height } : { top: 0, bottom: 0 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
           <button aria-label="Close" className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
           <motion.div
             role="dialog"
             aria-modal="true"
-            className="relative w-full max-w-lg rounded-t-[28px] border-t border-line-strong bg-surface px-5 pt-3 pb-[calc(var(--safe-bottom)+24px)]"
+            className="relative flex w-full max-w-lg flex-col rounded-t-[28px] border-t border-line-strong bg-surface"
+            style={{ maxHeight: vp ? vp.height - 12 : "calc(100dvh - 12px)" }}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", stiffness: 380, damping: 36 }}
           >
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line-strong" />
-            <button onClick={onClose} aria-label="Close" className="absolute top-4 right-4 rounded-full p-1.5 text-muted hover:bg-surface-3 hover:text-ink">
+            <div className="mx-auto mt-3 mb-4 h-1 w-10 shrink-0 rounded-full bg-line-strong" />
+            <button onClick={onClose} aria-label="Close" className="absolute top-4 right-4 z-10 rounded-full p-1.5 text-muted hover:bg-surface-3 hover:text-ink">
               <XIcon size={18} />
             </button>
-            {children}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[calc(var(--safe-bottom)+24px)]">{children}</div>
           </motion.div>
         </motion.div>
       )}

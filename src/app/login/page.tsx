@@ -127,7 +127,26 @@ function NameLogin() {
           </p>
         </>
       )}
-      {error && <p className="text-sm text-problem">{error}</p>}
+      {error && (
+        <p className="text-sm text-problem">
+          {error}
+          {mode === "in" && /wrong name/i.test(error) && (
+            <>
+              {" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("up");
+                  setError(null);
+                }}
+                className="font-semibold text-ink underline underline-offset-2"
+              >
+                No account yet? Create one.
+              </button>
+            </>
+          )}
+        </p>
+      )}
       <button disabled={busy} className="mt-2 w-full rounded-2xl bg-volt py-4 font-display text-lg font-black tracking-wide text-volt-ink disabled:opacity-60">
         {busy ? "…" : mode === "in" ? "Sign in" : "Join the club"}
       </button>

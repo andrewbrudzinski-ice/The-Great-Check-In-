@@ -26,6 +26,10 @@ export interface Backend {
   approveGym(id: string): Promise<void>;
   updateGym(id: string, input: GymInput): Promise<void>;
   archiveGym(id: string): Promise<void>;
+  /** Admin: check a player in who forgot (optionally backdated, max 14 days). */
+  adminCheckIn(input: { userId: string; gymId: string; at: string; note: string }): Promise<void>;
+  /** Admin: remove a manual check-in added by mistake. */
+  adminRemoveCheckIn(id: string): Promise<void>;
   /** Mark a week's group punishment done (or back to owed). */
   setPunishmentDone(weekStart: string, done: boolean): Promise<void>;
   updatePlayer(id: string, patch: Partial<Pick<Player, "name" | "avatar" | "color">>): Promise<void>;

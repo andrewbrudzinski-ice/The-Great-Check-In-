@@ -84,6 +84,12 @@ This won't stop a determined GPS spoofer, but it makes casual cheating annoying.
 
 Location is read only when someone taps Check In (or an admin taps "Use my location" in Settings). No `watchPosition`, no background tracking. Only one coordinate per check-in is stored.
 
+### Admin manual check-ins
+
+Someone forgot to tap the button? The admin can add a check-in for them under **Settings → Check someone in**: pick the player, the gym, the time (up to 14 days back) and an optional note. Manual check-ins run through `admin_check_in()`. It is admin-only, keeps the same cooldown so a visit can't be counted twice, and carries no GPS. They're labelled "✍️ added by …" everywhere, so the group can see them. If the time falls in an already-finished week, that week is re-counted, and an owed punishment is cleared if the miss is fixed. Manual check-ins can be removed again. GPS check-ins can't be.
+
+Existing installs: run `supabase/migrations/002_admin_check_in.sql` once in the SQL editor (it's already part of `schema.sql`).
+
 ### Weeks, results and streaks
 
 - Weeks run Monday 00:00 → Sunday 23:59 in the club's **timezone** setting.
