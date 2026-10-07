@@ -106,6 +106,7 @@ function GymMap() {
             checkIn={selectedCheckIn}
             player={byId(selectedCheckIn.userId)!}
             settings={data.settings}
+            addedByName={byId(selectedCheckIn.addedBy ?? "")?.name}
             onClose={() => setSelected(null)}
           />
         </div>
@@ -139,6 +140,7 @@ function GymMap() {
                   <p className="text-sm font-semibold">{p.name}</p>
                   <p className="truncate text-xs text-muted">
                     {c.gymName}
+                    {c.manual && <span className="text-one"> · ✍️ added by admin</span>}
                     {c.distanceM != null && (
                       <>
                         {" · "}

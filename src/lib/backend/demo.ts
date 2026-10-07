@@ -9,7 +9,7 @@ import type { AppData, CheckIn, CheckInResult, Gym, Player, Punishment, Settings
 import { addDays, localDate, midnightIn, weekKey, weekStartOf } from "../week";
 import type { Backend, GymInput, Session } from "./types";
 
-const KEY = "tgci-demo-v5";
+const KEY = "tgci-demo-v6";
 const SESSION_KEY = "tgci-demo-session";
 
 type DemoDB = AppData;
@@ -85,6 +85,9 @@ function seed(): DemoDB {
       radiusM: g.radiusM,
       gymId: g.id,
       gymName: g.name,
+      manual: false,
+      addedBy: null,
+      note: null,
       checkedInAt: t.toISOString(),
     });
   };
@@ -153,6 +156,25 @@ function freeze(db: DemoDB, now: Date) {
     }
   }
   return changed;
+}
+
+/** Re-count a frozen week after a manual add/remove (mirrors app_private.refreeze_week). */
+function refreeze(db: DemoDB, wk: string) {
+  const tz = db.settings.timezone;
+  const rows = db.results.filter((r) => r.weekStart === wk);
+  if (!rows.length) return; // live week, nothing frozen
+  for (const r of rows) {
+    r.count = db.checkIns.filter((c) => c.userId === r.userId && weekKey(c.checkedInAt, tz) === wk).length;
+    r.completed = r.count >= r.requirement;
+    r.punishment = r.completed ? null : (r.punishment ?? db.settings.punishment);
+  }
+  const failed = rows.some((r) => !r.completed);
+  const debt = db.punishments.find((p) => p.weekStart === wk);
+  if (failed && !debt) {
+    db.punishments.push({ weekStart: wk, text: db.settings.punishment, status: "owed", completedAt: null, completedBy: null });
+  } else if (!failed && debt?.status === "owed") {
+    db.punishments = db.punishments.filter((p) => p !== debt);
+  }
 }
 
 function read(): DemoDB {
@@ -249,6 +271,9 @@ export function createDemoBackend(): Backend {
         radiusM: m.gym.radiusM,
         gymId: m.gym.id,
         gymName: m.gym.name,
+        manual: false,
+        addedBy: null,
+        note: null,
         checkedInAt: new Date().toISOString(),
       };
       db.checkIns.push(checkIn);
@@ -310,6 +335,48 @@ export function createDemoBackend(): Backend {
       const admin = db.players.find((p) => p.id === session.userId)?.isAdmin;
       if (!admin && g.createdBy !== session.userId) throw new Error("Only the admin or whoever added it can remove a gym.");
       g.archived = true;
+      write(db);
+    },
+    async adminCheckIn({ userId, gymId, at, note }) {
+      const session = currentSession();
+      const db = read();
+      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin)
+        throw new Error("Only the admin can add check-ins for someone else.");
+      const g = db.gyms.find((x) => x.id === gymId && x.status === "approved" && !x.archived);
+      if (!g) throw new Error("Pick an approved gym.");
+      const t = new Date(at).getTime();
+      if (t > Date.now() + 5 * 60000) throw new Error("That time is in the future.");
+      if (t < Date.now() - 14 * 86400000) throw new Error("You can only go back 14 days.");
+      const window = db.settings.cooldownHours * 3600000;
+      if (db.checkIns.some((c) => c.userId === userId && Math.abs(new Date(c.checkedInAt).getTime() - t) < window))
+        throw new Error("They already have a check-in within the cooldown window of that time.");
+      db.checkIns.push({
+        id: crypto.randomUUID?.() ?? String(Date.now()),
+        userId,
+        latitude: g.latitude,
+        longitude: g.longitude,
+        accuracy: null,
+        distanceM: null,
+        radiusM: g.radiusM,
+        gymId: g.id,
+        gymName: g.name,
+        manual: true,
+        addedBy: session.userId,
+        note: note.trim() || null,
+        checkedInAt: new Date(t).toISOString(),
+      });
+      db.checkIns.sort((a, b) => a.checkedInAt.localeCompare(b.checkedInAt));
+      refreeze(db, weekKey(new Date(t), db.settings.timezone));
+      write(db);
+    },
+    async adminRemoveCheckIn(id) {
+      const session = currentSession();
+      const db = read();
+      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin) throw new Error("Only the admin can do that.");
+      const c = db.checkIns.find((x) => x.id === id && x.manual);
+      if (!c) throw new Error("That check-in is already gone (only manual ones can be removed).");
+      db.checkIns = db.checkIns.filter((x) => x !== c);
+      refreeze(db, weekKey(c.checkedInAt, db.settings.timezone));
       write(db);
     },
     async setPunishmentDone(weekStart, done) {

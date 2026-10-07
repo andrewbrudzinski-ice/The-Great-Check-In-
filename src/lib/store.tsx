@@ -30,6 +30,8 @@ type Ctx = {
   approveGym: (id: string) => Promise<void>;
   updateGym: (id: string, input: GymInput) => Promise<void>;
   archiveGym: (id: string) => Promise<void>;
+  adminCheckIn: (input: { userId: string; gymId: string; at: string; note: string }) => Promise<void>;
+  adminRemoveCheckIn: (id: string) => Promise<void>;
   updatePlayer: (id: string, patch: Partial<Pick<Player, "name" | "avatar" | "color">>) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -178,6 +180,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       approveGym: write((id: string) => backend.approveGym(id)),
       updateGym: write((id: string, i: GymInput) => backend.updateGym(id, i)),
       archiveGym: write((id: string) => backend.archiveGym(id)),
+      adminCheckIn: write((i: { userId: string; gymId: string; at: string; note: string }) => backend.adminCheckIn(i)),
+      adminRemoveCheckIn: write((id: string) => backend.adminRemoveCheckIn(id)),
     }),
     [backend, write],
   );

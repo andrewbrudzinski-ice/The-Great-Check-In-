@@ -180,6 +180,7 @@ export default function Home() {
                     <Avatar player={p} size={30} />
                     <span className="flex-1 text-sm">
                       <b className="font-semibold">{p.name}</b> <span className="text-muted">checked in at {c.gymName}</span>
+                      {c.manual && <span className="text-xs text-one"> ✍️</span>}
                     </span>
                     <span className="tabular text-xs text-muted">{formatTime(c.checkedInAt, tz)}</span>
                     <span className="text-xs text-muted">📍</span>

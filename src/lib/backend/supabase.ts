@@ -25,6 +25,9 @@ const toCheckIn = (r: Row): CheckIn => ({
   radiusM: r.radius_m ?? null,
   gymId: r.gym_id ?? null,
   gymName: r.gym_name,
+  manual: !!r.manual,
+  addedBy: r.added_by ?? null,
+  note: r.note ?? null,
   checkedInAt: new Date(r.checked_in_at).toISOString(),
 });
 
@@ -63,6 +66,16 @@ const toGym = (r: Row): Gym => ({
   archived: r.archived,
   createdAt: r.created_at,
 });
+
+const ADMIN_CHECK_IN_ERRORS: Record<string, string> = {
+  forbidden: "Only the admin can add check-ins for someone else.",
+  no_player: "That player doesn't exist.",
+  no_gym: "Pick an approved gym.",
+  future: "That time is in the future.",
+  too_old: "You can only go back 14 days.",
+  duplicate: "They already have a check-in within the cooldown window of that time.",
+  not_found: "That check-in is already gone (only manual ones can be removed).",
+};
 
 const GYM_ERRORS: Record<string, string> = {
   own_gym: "Someone else has to approve a gym you added.",
@@ -233,6 +246,20 @@ export function createSupabaseBackend(): Backend {
       await gymRpc("archive_gym", { p_gym: id });
     },
 
+    async adminCheckIn({ userId, gymId, at, note }) {
+      const { data, error } = await sb.rpc("admin_check_in", { p_user: userId, p_gym: gymId, p_at: at, p_note: note });
+      if (error) throw new Error(error.message);
+      const r = data as Row;
+      if (!r?.ok) throw new Error(ADMIN_CHECK_IN_ERRORS[r?.code] ?? "Couldn't add the check-in.");
+    },
+
+    async adminRemoveCheckIn(id) {
+      const { data, error } = await sb.rpc("admin_remove_check_in", { p_check_in: id });
+      if (error) throw new Error(error.message);
+      const r = data as Row;
+      if (!r?.ok) throw new Error(ADMIN_CHECK_IN_ERRORS[r?.code] ?? "Couldn't remove the check-in.");
+    },
+
     async setPunishmentDone(weekStart, done) {
       const { data, error } = await sb.rpc("set_punishment_done", { p_week_start: weekStart, p_done: done });
       if (error) throw new Error(error.message);
@@ -248,7 +275,7 @@ export function createSupabaseBackend(): Backend {
     subscribe(cb) {
       const channel = sb
         .channel("check-ins")
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "check_ins" }, () => cb())
+        .on("postgres_changes", { event: "*", schema: "public", table: "check_ins" }, () => cb())
         .on("postgres_changes", { event: "*", schema: "public", table: "punishments" }, () => cb())
         .on("postgres_changes", { event: "*", schema: "public", table: "gyms" }, () => cb())
         .subscribe();
