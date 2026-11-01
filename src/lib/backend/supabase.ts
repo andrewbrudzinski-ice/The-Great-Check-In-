@@ -210,8 +210,6 @@ export function createSupabaseBackend(): Backend {
     },
 
     async load(): Promise<AppData> {
-      // Challenge logs: the last ~4 months is plenty for streaks and the 7-day grid.
-      const since = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
       const [players, checkIns, settings, results, punishments, gyms, challenges, challengeLogs] = await Promise.all([
         selectAll(sb, "users", "*", "created_at"),
         selectAll(sb, "check_ins", "*", "checked_in_at"),
@@ -221,7 +219,8 @@ export function createSupabaseBackend(): Backend {
         selectAll(sb, "gyms", "*", "created_at"),
         // Tolerate a database that hasn't had the challenges migration yet.
         selectAll(sb, "challenges", "*", "created_at").catch(() => []),
-        selectAll(sb, "challenge_logs", "*", "logged_at", { column: "day", value: since }).catch(() => []),
+        // All of it: profiles show lifetime totals and best streaks (a few thousand rows a year).
+        selectAll(sb, "challenge_logs", "*", "logged_at").catch(() => []),
       ]);
       if (settings.error) throw settings.error;
       return {
