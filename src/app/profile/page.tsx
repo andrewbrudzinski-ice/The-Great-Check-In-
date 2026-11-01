@@ -8,6 +8,7 @@ import { Avatar } from "@/components/Avatar";
 import { GearIcon } from "@/components/Icons";
 import { Ring, SectionTitle, StatusPill } from "@/components/ui";
 import type { PlayerStats } from "@/lib/game";
+import { lifetimeStats } from "@/lib/challenges";
 import { STATUS_META } from "@/lib/game";
 import { formatDistance } from "@/lib/geo";
 import { useGame } from "@/lib/store";
@@ -33,6 +34,7 @@ function Profile() {
   const st = game.stats[player.id];
   const pw = game.standings.find((s) => s.player.id === player.id)!;
   const isMe = player.id === me?.id;
+  const challengeStats = lifetimeStats(data.challenges, data.challengeLogs, player.id, game.today, data.settings.timezone);
   const mineAll = data.checkIns.filter((c) => c.userId === player.id);
   const recent = mineAll.slice(-8).reverse();
   // Visits per gym, most-used first
@@ -120,6 +122,41 @@ function Profile() {
         />
       </dl>
 
+      {challengeStats.length > 0 && (
+        <section className="mt-8">
+          <SectionTitle right={<Link href="/challenges" className="text-[11px] font-semibold text-muted hover:text-ink">All →</Link>}>
+            Daily challenges
+          </SectionTitle>
+          <ul className="space-y-3">
+            {challengeStats.map((cs) => (
+              <li key={cs.challenge.id} className="rounded-2xl border border-line bg-surface/50 p-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl" aria-hidden>
+                    {cs.challenge.emoji}
+                  </span>
+                  <span className="flex-1 font-display text-lg font-extrabold">
+                    {cs.challenge.name}
+                    {cs.challenge.archived && <span className="ml-2 text-[10px] font-bold tracking-wider text-muted">RETIRED</span>}
+                  </span>
+                  <span className="text-xs text-muted">
+                    {cs.challenge.dailyTarget.toLocaleString("en-US")} {cs.challenge.unit}/day
+                  </span>
+                </div>
+                <dl className="mt-3 grid grid-cols-3 gap-3">
+                  <MiniStat label={`Total ${cs.challenge.unit}`} value={cs.total.toLocaleString("en-US")} />
+                  <MiniStat label="Days done" value={String(cs.daysCompleted)} tone={cs.daysCompleted ? "safe" : undefined} />
+                  <MiniStat label="In a row" value={String(cs.currentStreak)} flame={cs.currentStreak > 0} />
+                </dl>
+                <p className="mt-2 text-xs text-muted">
+                  Best: {cs.bestStreak} day{cs.bestStreak === 1 ? "" : "s"} in a row
+                  {!cs.challenge.archived && (cs.doneToday ? " · ✓ done today" : " · not done today yet")}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {gymVisits.length > 0 && (
         <section className="mt-8">
           <SectionTitle>Gyms</SectionTitle>
@@ -190,6 +227,21 @@ function BigStat({ label, value, suffix, tone }: { label: string; value: number;
           {value}
         </span>
         {suffix && <span className="text-sm font-semibold text-muted">{suffix}</span>}
+      </dd>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, tone, flame }: { label: string; value: string; tone?: "safe"; flame?: boolean }) {
+  return (
+    <div>
+      <dt className="truncate text-[10px] font-semibold tracking-wider text-muted uppercase">{label}</dt>
+      <dd
+        className={`font-display tabular mt-0.5 text-2xl leading-none font-black ${flame ? "text-orange-300" : ""}`}
+        style={tone ? { color: `var(--color-${tone})` } : undefined}
+      >
+        {value}
+        {flame && <span className="ml-0.5 text-base">🔥</span>}
       </dd>
     </div>
   );

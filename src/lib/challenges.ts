@@ -91,3 +91,68 @@ export function quickAmounts(target: number): number[] {
   if (target <= 1000) return [50, 100, 250];
   return [500, 1000, 2500];
 }
+
+export type ChallengeLifetime = {
+  challenge: Challenge;
+  /** Everything logged, ever (e.g. total pushups). */
+  total: number;
+  /** Days the target was hit. */
+  daysCompleted: number;
+  /** Consecutive days ending today (or yesterday while today is in progress). */
+  currentStreak: number;
+  bestStreak: number;
+  doneToday: boolean;
+};
+
+/** One player's lifetime stats per challenge, for their profile. */
+export function lifetimeStats(
+  challenges: Challenge[],
+  logs: ChallengeLog[],
+  playerId: string,
+  today: string,
+  tz: string,
+): ChallengeLifetime[] {
+  return challenges
+    .map((challenge) => {
+      const byDay = new Map<string, { total: number; target: number }>();
+      let total = 0;
+      for (const l of logs) {
+        if (l.challengeId !== challenge.id || l.userId !== playerId) continue;
+        total += l.amount;
+        const d = byDay.get(l.day) ?? { total: 0, target: 0 };
+        d.total += l.amount;
+        d.target = Math.max(d.target, l.target);
+        byDay.set(l.day, d);
+      }
+      const done = (day: string) => {
+        const d = byDay.get(day);
+        if (!d) return false;
+        const target = day === today && !challenge.archived ? challenge.dailyTarget : d.target || challenge.dailyTarget;
+        return d.total >= target;
+      };
+
+      const daysCompleted = [...byDay.keys()].filter(done).length;
+
+      // Best streak: walk every day from the first log to today.
+      let best = 0;
+      let run = 0;
+      const days = [...byDay.keys()].sort();
+      if (days.length) {
+        for (let d = days[0]; d <= today; d = addDays(d, 1)) {
+          run = done(d) ? run + 1 : 0;
+          best = Math.max(best, run);
+        }
+      }
+
+      let current = 0;
+      const start = localDate(challenge.createdAt, tz) < (days[0] ?? today) ? localDate(challenge.createdAt, tz) : (days[0] ?? today);
+      for (let d = done(today) ? today : addDays(today, -1); d >= start; d = addDays(d, -1)) {
+        if (!done(d)) break;
+        current++;
+      }
+
+      return { challenge, total, daysCompleted, currentStreak: current, bestStreak: best, doneToday: done(today) };
+    })
+    // Active challenges, plus retired ones this player actually did.
+    .filter((s) => !s.challenge.archived || s.total > 0);
+}

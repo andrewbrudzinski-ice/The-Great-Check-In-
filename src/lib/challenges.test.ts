@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeChallenges, quickAmounts } from "./challenges.ts";
+import { computeChallenges, lifetimeStats, quickAmounts } from "./challenges.ts";
 import type { Challenge, ChallengeLog, Player } from "./types.ts";
 
 const tz = "America/New_York";
@@ -44,4 +44,23 @@ test("archived challenges are hidden; quick amounts scale", () => {
   assert.deepEqual(quickAmounts(100), [10, 25, 50]);
   assert.deepEqual(quickAmounts(5), [1, 2, 5]);
   assert.deepEqual(quickAmounts(10000), [500, 1000, 2500]);
+});
+
+test("lifetime stats for a profile", () => {
+  const logs = [
+    log("A", "2026-10-25", 100), log("A", "2026-10-26", 100), log("A", "2026-10-27", 100), // 3 in a row
+    log("A", "2026-10-28", 40),                                                          // miss
+    log("A", "2026-10-30", 60), log("A", "2026-10-30", 50), log("A", "2026-10-31", 100), // 2 in a row
+    log("A", "2026-11-01", 30),                                                          // today, in progress
+    log("B", "2026-11-01", 500),
+  ];
+  const [s] = lifetimeStats([pushups], logs, "A", "2026-11-01", tz);
+  assert.equal(s.total, 580);
+  assert.equal(s.daysCompleted, 5);
+  assert.equal(s.currentStreak, 2); // still alive from yesterday
+  assert.equal(s.bestStreak, 3);
+  assert.equal(s.doneToday, false);
+  // retired challenges only show if the player did any
+  const retired = { ...pushups, id: "r", archived: true };
+  assert.equal(lifetimeStats([retired], [], "A", "2026-11-01", tz).length, 0);
 });
