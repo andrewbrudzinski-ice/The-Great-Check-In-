@@ -53,6 +53,30 @@ export type Gym = {
   createdAt: string;
 };
 
+/** A daily challenge, e.g. "Pushups · 100 reps a day". */
+export type Challenge = {
+  id: string;
+  name: string;
+  emoji: string;
+  dailyTarget: number;
+  unit: string;
+  archived: boolean;
+  createdBy: string | null;
+  createdAt: string;
+};
+
+/** One logged set. `day` is the club-timezone date it counts for. */
+export type ChallengeLog = {
+  id: string;
+  challengeId: string;
+  userId: string;
+  amount: number;
+  /** The challenge's target when this was logged. */
+  target: number;
+  day: string; // YYYY-MM-DD
+  loggedAt: string;
+};
+
 /** A frozen result for one player in one finished week. */
 export type WeekResult = {
   weekStart: string; // YYYY-MM-DD (Monday)
@@ -78,6 +102,8 @@ export type AppData = {
   results: WeekResult[];
   punishments: Punishment[];
   gyms: Gym[];
+  challenges: Challenge[];
+  challengeLogs: ChallengeLog[];
   settings: Settings;
 };
 

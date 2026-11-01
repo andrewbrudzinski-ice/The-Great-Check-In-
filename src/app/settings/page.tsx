@@ -67,6 +67,19 @@ export default function SettingsPage() {
       </section>
 
       <section className="mt-10">
+        <SectionTitle>Daily challenges</SectionTitle>
+        <Link href="/challenges" className="flex items-center justify-between rounded-2xl border border-line bg-surface/50 px-4 py-3.5 hover:border-line-strong">
+          <span>
+            <span className="font-semibold">
+              {data.challenges.filter((c) => !c.archived).map((c) => `${c.emoji} ${c.name}`).join(" · ") || "None yet"}
+            </span>
+            <span className="block text-xs text-muted">Add one, change the target or unit, or retire it.</span>
+          </span>
+          <span className="text-sm text-muted">Manage →</span>
+        </Link>
+      </section>
+
+      <section className="mt-10">
         <SectionTitle>Gyms</SectionTitle>
         <Link href="/gyms" className="flex items-center justify-between rounded-2xl border border-line bg-surface/50 px-4 py-3.5 hover:border-line-strong">
           <span>
