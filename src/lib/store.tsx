@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getBackend, type Session } from "./backend";
-import type { GymInput } from "./backend/types";
+import type { ChallengeInput, GymInput } from "./backend/types";
 import { computeGame, type GameState } from "./game";
 import { getCurrentFix, LocationError } from "./geo";
 import type { AppData, CheckInResult, Player, Settings } from "./types";
@@ -32,6 +32,10 @@ type Ctx = {
   archiveGym: (id: string) => Promise<void>;
   adminCheckIn: (input: { userId: string; gymId: string; at: string; note: string }) => Promise<void>;
   adminRemoveCheckIn: (id: string) => Promise<void>;
+  logChallenge: (challengeId: string, amount: number) => Promise<void>;
+  deleteChallengeLog: (id: string) => Promise<void>;
+  saveChallenge: (input: ChallengeInput) => Promise<void>;
+  archiveChallenge: (id: string) => Promise<void>;
   updatePlayer: (id: string, patch: Partial<Pick<Player, "name" | "avatar" | "color">>) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -182,6 +186,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       archiveGym: write((id: string) => backend.archiveGym(id)),
       adminCheckIn: write((i: { userId: string; gymId: string; at: string; note: string }) => backend.adminCheckIn(i)),
       adminRemoveCheckIn: write((id: string) => backend.adminRemoveCheckIn(id)),
+      logChallenge: write((id: string, amount: number) => backend.logChallenge(id, amount)),
+      deleteChallengeLog: write((id: string) => backend.deleteChallengeLog(id)),
+      saveChallenge: write((i: ChallengeInput) => backend.saveChallenge(i)),
+      archiveChallenge: write((id: string) => backend.archiveChallenge(id)),
     }),
     [backend, write],
   );

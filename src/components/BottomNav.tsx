@@ -6,7 +6,7 @@ import { motion } from "motion/react";
 import { HistoryIcon, HomeIcon, MapIcon, TrophyIcon, UserIcon } from "./Icons";
 
 const TABS = [
-  { href: "/", label: "Home", Icon: HomeIcon },
+  { href: "/", label: "Home", Icon: HomeIcon, also: "/challenges" },
   { href: "/map", label: "Map", Icon: MapIcon },
   { href: "/standings", label: "Standings", Icon: TrophyIcon, also: "/punishments" },
   { href: "/history", label: "History", Icon: HistoryIcon },
@@ -23,7 +23,7 @@ export function BottomNav() {
     >
       <ul className="mx-auto flex max-w-lg items-stretch justify-around px-2">
         {TABS.map(({ href, label, Icon, also }) => {
-          const active = href === "/" ? pathname === "/" : pathname.startsWith(href) || (!!also && pathname.startsWith(also));
+          const active = (href === "/" ? pathname === "/" : pathname.startsWith(href)) || (!!also && pathname.startsWith(also));
           return (
             <li key={href} className="flex-1">
               <Link

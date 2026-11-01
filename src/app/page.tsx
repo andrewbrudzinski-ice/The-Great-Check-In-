@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { Board } from "@/components/Board";
+import { ChallengesHome } from "@/components/Challenges";
 import { CheckInButton } from "@/components/CheckIn";
 import { GearIcon } from "@/components/Icons";
 import { InstallBanner } from "@/components/InstallApp";
@@ -157,6 +158,12 @@ export default function Home() {
           </p>
         )}
         <CheckInButton />
+      </section>
+
+      {/* Daily challenges */}
+      <section className="mt-9" aria-label="Daily challenges">
+        <SectionTitle>Daily challenge</SectionTitle>
+        <ChallengesHome />
       </section>
 
       <InstallBanner />

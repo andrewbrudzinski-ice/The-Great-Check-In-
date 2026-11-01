@@ -84,6 +84,12 @@ This won't stop a determined GPS spoofer, but it makes casual cheating annoying.
 
 Location is read only when someone taps Check In (or an admin taps "Use my location" in Settings). No `watchPosition`, no background tracking. Only one coordinate per check-in is stored.
 
+### Daily challenges
+
+Alongside the gym goal, the group can track daily challenges such as **100 pushups a day**. Each challenge has a name, emoji, daily target and unit (reps, min, km, steps…), and anyone can add, edit or retire one on the **Challenges** page. Players log sets from Home with quick-add buttons (scaled to the target) or a custom amount, and can undo their own sets from today or yesterday. Home shows everyone's progress for today plus daily streaks; the Challenges page adds a 7-day grid. It's honor system (no GPS) and doesn't affect the weekly punishment.
+
+Logs go through `log_challenge()`, which stamps your user, the club-timezone day and the target at that moment, so changing a target never rewrites past days. Existing installs: run `supabase/migrations/003_daily_challenges.sql` once.
+
 ### Admin manual check-ins
 
 Someone forgot to tap the button? The admin can add a check-in for them under **Settings → Check someone in**: pick the player, the gym, the time (up to 14 days back) and an optional note. Manual check-ins run through `admin_check_in()`. It is admin-only, keeps the same cooldown so a visit can't be counted twice, and carries no GPS. They're labelled "✍️ added by …" everywhere, so the group can see them. If the time falls in an already-finished week, that week is re-counted, and an owed punishment is cleared if the miss is fixed. Manual check-ins can be removed again. GPS check-ins can't be.

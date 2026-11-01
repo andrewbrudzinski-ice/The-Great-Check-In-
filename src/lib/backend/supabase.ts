@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_SETTINGS, SUPABASE_ANON_KEY, SUPABASE_URL } from "../config";
-import type { AppData, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
+import type { AppData, Challenge, ChallengeLog, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
 import { loginEmail } from "../login-name";
 import type { Backend, GymInput, Session } from "./types";
 
@@ -85,12 +85,48 @@ const GYM_ERRORS: Record<string, string> = {
   not_authenticated: "Sign in first.",
 };
 
+const toChallenge = (r: Row): Challenge => ({
+  id: r.id,
+  name: r.name,
+  emoji: r.emoji,
+  dailyTarget: r.daily_target,
+  unit: r.unit,
+  archived: r.archived,
+  createdBy: r.created_by,
+  createdAt: r.created_at,
+});
+
+const toChallengeLog = (r: Row): ChallengeLog => ({
+  id: r.id,
+  challengeId: r.challenge_id,
+  userId: r.user_id,
+  amount: r.amount,
+  target: r.target,
+  day: r.day,
+  loggedAt: r.logged_at,
+});
+
+const CHALLENGE_ERRORS: Record<string, string> = {
+  not_found: "That challenge is gone (or that set is too old to undo).",
+  bad_amount: "Enter a number above zero.",
+  too_many: "That's a lot of challenges. Retire one first.",
+  not_authenticated: "Sign in first.",
+};
+
 /** Supabase caps a select at 1000 rows by default — page through. */
-async function selectAll(sb: SupabaseClient, table: string, columns: string, order: string): Promise<Row[]> {
+async function selectAll(
+  sb: SupabaseClient,
+  table: string,
+  columns: string,
+  order: string,
+  since?: { column: string; value: string },
+): Promise<Row[]> {
   const out: Row[] = [];
   const page = 1000;
   for (let from = 0; ; from += page) {
-    const { data, error } = await sb.from(table).select(columns).order(order).range(from, from + page - 1);
+    let query = sb.from(table).select(columns);
+    if (since) query = query.gte(since.column, since.value);
+    const { data, error } = await query.order(order).range(from, from + page - 1);
     if (error) throw error;
     out.push(...((data as unknown as Row[]) ?? []));
     if (!data || data.length < page) return out;
@@ -110,6 +146,18 @@ export function createSupabaseBackend(): Backend {
     if (error) throw new Error(error.message);
     const r = data as Row;
     if (!r?.ok) throw new Error(GYM_ERRORS[r?.code] ?? "Couldn't update the gym.");
+    return r;
+  }
+
+  async function challengeRpc(fn: string, args: Record<string, unknown>): Promise<Row> {
+    const { data, error } = await sb.rpc(fn, args);
+    if (error) {
+      if (/could not find the function/i.test(error.message))
+        throw new Error("Challenges aren't set up in the database yet. Run supabase/migrations/003_daily_challenges.sql.");
+      throw new Error(error.message);
+    }
+    const r = data as Row;
+    if (!r?.ok) throw new Error(CHALLENGE_ERRORS[r?.code] ?? "Couldn't save that.");
     return r;
   }
 
@@ -162,13 +210,18 @@ export function createSupabaseBackend(): Backend {
     },
 
     async load(): Promise<AppData> {
-      const [players, checkIns, settings, results, punishments, gyms] = await Promise.all([
+      // Challenge logs: the last ~4 months is plenty for streaks and the 7-day grid.
+      const since = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
+      const [players, checkIns, settings, results, punishments, gyms, challenges, challengeLogs] = await Promise.all([
         selectAll(sb, "users", "*", "created_at"),
         selectAll(sb, "check_ins", "*", "checked_in_at"),
         sb.from("settings").select("*").eq("id", 1).maybeSingle(),
         selectAll(sb, "weekly_results", "*, weeks!inner(start_date)", "created_at"),
         selectAll(sb, "punishments", "*, weeks!inner(start_date)", "created_at"),
         selectAll(sb, "gyms", "*", "created_at"),
+        // Tolerate a database that hasn't had the challenges migration yet.
+        selectAll(sb, "challenges", "*", "created_at").catch(() => []),
+        selectAll(sb, "challenge_logs", "*", "logged_at", { column: "day", value: since }).catch(() => []),
       ]);
       if (settings.error) throw settings.error;
       return {
@@ -176,6 +229,8 @@ export function createSupabaseBackend(): Backend {
         checkIns: checkIns.map(toCheckIn),
         settings: toSettings(settings.data),
         gyms: gyms.map(toGym),
+        challenges: challenges.map(toChallenge),
+        challengeLogs: challengeLogs.map(toChallengeLog),
         punishments: punishments.map(
           (r): Punishment => ({
             weekStart: r.weeks.start_date,
@@ -242,6 +297,22 @@ export function createSupabaseBackend(): Backend {
       await gymRpc("update_gym", { p_gym: id, p_name: input.name, p_latitude: input.latitude, p_longitude: input.longitude, p_radius: input.radiusM });
     },
 
+    async logChallenge(challengeId, amount) {
+      await challengeRpc("log_challenge", { p_challenge: challengeId, p_amount: amount });
+    },
+
+    async deleteChallengeLog(id) {
+      await challengeRpc("delete_challenge_log", { p_log: id });
+    },
+
+    async saveChallenge({ id, name, emoji, dailyTarget, unit }) {
+      await challengeRpc("save_challenge", { p_id: id ?? null, p_name: name, p_emoji: emoji, p_target: dailyTarget, p_unit: unit });
+    },
+
+    async archiveChallenge(id) {
+      await challengeRpc("archive_challenge", { p_id: id });
+    },
+
     async archiveGym(id) {
       await gymRpc("archive_gym", { p_gym: id });
     },
@@ -278,6 +349,8 @@ export function createSupabaseBackend(): Backend {
         .on("postgres_changes", { event: "*", schema: "public", table: "check_ins" }, () => cb())
         .on("postgres_changes", { event: "*", schema: "public", table: "punishments" }, () => cb())
         .on("postgres_changes", { event: "*", schema: "public", table: "gyms" }, () => cb())
+        .on("postgres_changes", { event: "*", schema: "public", table: "challenge_logs" }, () => cb())
+        .on("postgres_changes", { event: "*", schema: "public", table: "challenges" }, () => cb())
         .subscribe();
       return () => {
         sb.removeChannel(channel);

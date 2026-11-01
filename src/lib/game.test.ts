@@ -35,7 +35,7 @@ function ci(userId: string, date: string, hour = 12): CheckIn {
 
 function data(checkIns: CheckIn[]): AppData {
   return {
-    players, checkIns, results: [], punishments: [], gyms: [],
+    players, checkIns, results: [], punishments: [], gyms: [], challenges: [], challengeLogs: [],
     settings: {
       appTitle: "", appSubtitle: "", checkInRadius: 150,
       weeklyRequirement: 5, cooldownHours: 4, punishment: "Lunch", timezone: tz,

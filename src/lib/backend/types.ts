@@ -30,6 +30,13 @@ export interface Backend {
   adminCheckIn(input: { userId: string; gymId: string; at: string; note: string }): Promise<void>;
   /** Admin: remove a manual check-in added by mistake. */
   adminRemoveCheckIn(id: string): Promise<void>;
+  /** Log a set for yourself today (e.g. 25 pushups). */
+  logChallenge(challengeId: string, amount: number): Promise<void>;
+  /** Undo one of your own sets from today or yesterday. */
+  deleteChallengeLog(id: string): Promise<void>;
+  /** Create (no id) or edit a challenge. Any player can. */
+  saveChallenge(input: ChallengeInput): Promise<void>;
+  archiveChallenge(id: string): Promise<void>;
   /** Mark a week's group punishment done (or back to owed). */
   setPunishmentDone(weekStart: string, done: boolean): Promise<void>;
   updatePlayer(id: string, patch: Partial<Pick<Player, "name" | "avatar" | "color">>): Promise<void>;
@@ -38,3 +45,5 @@ export interface Backend {
 }
 
 export type GymInput = { name: string; latitude: number; longitude: number; radiusM: number };
+
+export type ChallengeInput = { id?: string; name: string; emoji: string; dailyTarget: number; unit: string };
