@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_SETTINGS, SUPABASE_ANON_KEY, SUPABASE_URL } from "../config";
-import type { AppData, Challenge, ChallengeLog, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
+import type { AppData, Challenge, ChallengeLog, Program, ProgramDay, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
 import { loginEmail } from "../login-name";
 import type { Backend, GymInput, Session } from "./types";
 
@@ -106,6 +106,33 @@ const toChallengeLog = (r: Row): ChallengeLog => ({
   loggedAt: r.logged_at,
 });
 
+const toProgram = (r: Row): Program => ({
+  id: r.id,
+  userId: r.user_id,
+  name: r.name,
+  strict: r.strict,
+  lengthDays: r.length_days,
+  tasks: r.tasks,
+  startDate: r.start_date,
+  status: r.status,
+  attempt: r.attempt,
+  createdAt: r.created_at,
+  endedAt: r.ended_at,
+});
+
+const toProgramDay = (r: Row): ProgramDay => ({ programId: r.program_id, day: r.day, done: r.done ?? [] });
+
+const PROGRAM_ERRORS: Record<string, string> = {
+  not_found: "That run isn't active anymore.",
+  locked: "That day is locked. You can only tick today or yesterday.",
+  out_of_range: "That day isn't part of this run.",
+  bad_task: "That task isn't part of this run.",
+  bad_tasks: "Add between 1 and 10 daily tasks.",
+  bad_length: "Pick a length between 7 and 365 days.",
+  too_many: "You already have 3 runs going. Finish or quit one first.",
+  not_authenticated: "Sign in first.",
+};
+
 const CHALLENGE_ERRORS: Record<string, string> = {
   not_found: "That challenge is gone (or that set is too old to undo).",
   bad_amount: "Enter a number above zero.",
@@ -146,6 +173,18 @@ export function createSupabaseBackend(): Backend {
     if (error) throw new Error(error.message);
     const r = data as Row;
     if (!r?.ok) throw new Error(GYM_ERRORS[r?.code] ?? "Couldn't update the gym.");
+    return r;
+  }
+
+  async function programRpc(fn: string, args: Record<string, unknown>): Promise<Row> {
+    const { data, error } = await sb.rpc(fn, args);
+    if (error) {
+      if (/could not find the function/i.test(error.message))
+        throw new Error("75 Hard isn't set up in the database yet. Run supabase/migrations/004_programs.sql.");
+      throw new Error(error.message);
+    }
+    const r = data as Row;
+    if (!r?.ok) throw new Error(PROGRAM_ERRORS[r?.code] ?? "Couldn't save that.");
     return r;
   }
 
@@ -210,7 +249,7 @@ export function createSupabaseBackend(): Backend {
     },
 
     async load(): Promise<AppData> {
-      const [players, checkIns, settings, results, punishments, gyms, challenges, challengeLogs] = await Promise.all([
+      const [players, checkIns, settings, results, punishments, gyms, challenges, challengeLogs, programs, programDays] = await Promise.all([
         selectAll(sb, "users", "*", "created_at"),
         selectAll(sb, "check_ins", "*", "checked_in_at"),
         sb.from("settings").select("*").eq("id", 1).maybeSingle(),
@@ -221,6 +260,9 @@ export function createSupabaseBackend(): Backend {
         selectAll(sb, "challenges", "*", "created_at").catch(() => []),
         // All of it: profiles show lifetime totals and best streaks (a few thousand rows a year).
         selectAll(sb, "challenge_logs", "*", "logged_at").catch(() => []),
+        // Tolerate a database that hasn't had the programs migration yet.
+        selectAll(sb, "programs", "*", "created_at").catch(() => []),
+        selectAll(sb, "program_days", "*", "day").catch(() => []),
       ]);
       if (settings.error) throw settings.error;
       return {
@@ -230,6 +272,8 @@ export function createSupabaseBackend(): Backend {
         gyms: gyms.map(toGym),
         challenges: challenges.map(toChallenge),
         challengeLogs: challengeLogs.map(toChallengeLog),
+        programs: programs.map(toProgram),
+        programDays: programDays.map(toProgramDay),
         punishments: punishments.map(
           (r): Punishment => ({
             weekStart: r.weeks.start_date,
@@ -308,6 +352,18 @@ export function createSupabaseBackend(): Backend {
       await challengeRpc("save_challenge", { p_id: id ?? null, p_name: name, p_emoji: emoji, p_target: dailyTarget, p_unit: unit });
     },
 
+    async startProgram({ name, strict, lengthDays, tasks, startTomorrow }) {
+      await programRpc("start_program", { p_name: name, p_strict: strict, p_length: lengthDays, p_tasks: tasks, p_start_tomorrow: startTomorrow });
+    },
+
+    async toggleProgramTask(programId, day, taskId, done) {
+      await programRpc("toggle_program_task", { p_program: programId, p_day: day, p_task: taskId, p_done: done });
+    },
+
+    async endProgram(programId, status) {
+      await programRpc("end_program", { p_program: programId, p_status: status });
+    },
+
     async archiveChallenge(id) {
       await challengeRpc("archive_challenge", { p_id: id });
     },
@@ -350,6 +406,8 @@ export function createSupabaseBackend(): Backend {
         .on("postgres_changes", { event: "*", schema: "public", table: "gyms" }, () => cb())
         .on("postgres_changes", { event: "*", schema: "public", table: "challenge_logs" }, () => cb())
         .on("postgres_changes", { event: "*", schema: "public", table: "challenges" }, () => cb())
+        .on("postgres_changes", { event: "*", schema: "public", table: "programs" }, () => cb())
+        .on("postgres_changes", { event: "*", schema: "public", table: "program_days" }, () => cb())
         .subscribe();
       return () => {
         sb.removeChannel(channel);

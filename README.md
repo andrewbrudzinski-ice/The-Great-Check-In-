@@ -84,6 +84,17 @@ This won't stop a determined GPS spoofer, but it makes casual cheating annoying.
 
 Location is read only when someone taps Check In (or an admin taps "Use my location" in Settings). No `watchPosition`, no background tracking. Only one coordinate per check-in is stored.
 
+### 75 Hard / 75 Soft
+
+The **75 Hard** tab runs 75 Hard, 75 Soft, or a shorter run of either (30, 35 or any length). Each player starts their own run, picks Hard or Soft rules and can edit the daily task list. The tab shows today's checklist, a day ring, and a calendar of the whole run, plus everyone else's runs and the history of past attempts.
+
+- Today and yesterday are tickable, so a late tick after midnight still counts. Older days lock.
+- **Hard:** a locked day with anything unticked fails the run, and **Restart at Day 1** starts attempt #2.
+- **Soft:** misses are counted, with no reset.
+- Honor system: the progress photo is a checkbox.
+
+Writes go through `start_program`, `toggle_program_task` and `end_program`. Existing installs: run `supabase/migrations/004_programs.sql` once.
+
 ### Daily challenges
 
 Alongside the gym goal, the group can track daily challenges such as **100 pushups a day**. Each challenge has a name, emoji, daily target and unit (reps, min, km, steps…), and anyone can add, edit or retire one on the **Challenges** page. Players log sets from Home with quick-add buttons (scaled to the target) or a custom amount, and can undo their own sets from today or yesterday. Home shows everyone's progress for today plus daily streaks; the Challenges page adds a 7-day grid. It's honor system (no GPS) and doesn't affect the weekly punishment.

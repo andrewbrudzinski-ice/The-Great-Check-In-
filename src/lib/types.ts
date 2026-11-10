@@ -77,6 +77,26 @@ export type ChallengeLog = {
   loggedAt: string;
 };
 
+export type ProgramTask = { id: string; label: string; emoji: string };
+
+/** One attempt at 75 Hard / 75 Soft / a shorter run. */
+export type Program = {
+  id: string;
+  userId: string;
+  name: string;
+  /** Hard rules: a missed day means back to Day 1. */
+  strict: boolean;
+  lengthDays: number;
+  tasks: ProgramTask[];
+  startDate: string; // YYYY-MM-DD
+  status: "active" | "completed" | "failed" | "quit";
+  attempt: number;
+  createdAt: string;
+  endedAt: string | null;
+};
+
+export type ProgramDay = { programId: string; day: string; done: string[] };
+
 /** A frozen result for one player in one finished week. */
 export type WeekResult = {
   weekStart: string; // YYYY-MM-DD (Monday)
@@ -104,6 +124,8 @@ export type AppData = {
   gyms: Gym[];
   challenges: Challenge[];
   challengeLogs: ChallengeLog[];
+  programs: Program[];
+  programDays: ProgramDay[];
   settings: Settings;
 };
 
