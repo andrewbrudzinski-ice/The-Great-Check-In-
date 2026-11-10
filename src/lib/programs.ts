@@ -132,3 +132,33 @@ export function runLabel(r: RunState): string {
   if (r.finished) return `Finished · ${r.completeDays}/${p.lengthDays} days`;
   return `Day ${r.dayNumber} of ${p.lengthDays}`;
 }
+
+export type ProgramSummary = {
+  active: RunState[];
+  past: RunState[];
+  attempts: number;
+  completed: number;
+  failed: number;
+  /** Fully ticked days across every run. */
+  totalDays: number;
+  /** The run with the most completed days. */
+  best: { name: string; days: number; length: number } | null;
+};
+
+/** One player's 75 Hard / Soft history, for their profile. */
+export function programSummary(programs: Program[], days: ProgramDay[], userId: string, today: string): ProgramSummary {
+  const runs = programs
+    .filter((p) => p.userId === userId)
+    .map((p) => computeRun(p, days, today))
+    .sort((a, b) => b.program.createdAt.localeCompare(a.program.createdAt));
+  const best = runs.reduce<RunState | null>((b, r) => (!b || r.completeDays > b.completeDays ? r : b), null);
+  return {
+    active: runs.filter((r) => r.program.status === "active"),
+    past: runs.filter((r) => r.program.status !== "active"),
+    attempts: runs.length,
+    completed: runs.filter((r) => r.program.status === "completed").length,
+    failed: runs.filter((r) => r.program.status === "failed" || (r.program.status === "active" && r.failedOn)).length,
+    totalDays: runs.reduce((n, r) => n + r.completeDays, 0),
+    best: best && best.completeDays > 0 ? { name: best.program.name, days: best.completeDays, length: best.program.lengthDays } : null,
+  };
+}

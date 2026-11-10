@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeRun, PRESETS, programName } from "./programs.ts";
+import { computeRun, PRESETS, programName, programSummary } from "./programs.ts";
 import type { Program, ProgramDay } from "./types.ts";
 
 const tasks = PRESETS[0].tasks.slice(0, 2); // diet, workout1
@@ -54,4 +54,20 @@ test("not started yet; names", () => {
   assert.equal(r.dayNumber, 0);
   assert.equal(r.failedOn, null);
   assert.equal(programName(35, false), "35 Soft");
+});
+
+test("profile summary across attempts", () => {
+  const first = run({ id: "r1", status: "failed", createdAt: "2026-10-01", startDate: "2026-10-01" });
+  const second = run({ id: "r2", attempt: 2, createdAt: "2026-11-01" });
+  const days: ProgramDay[] = [
+    ...["01", "02", "03", "04", "05"].map((d) => ({ programId: "r1", day: `2026-10-${d}`, done: all })),
+    ...["01", "02", "03"].map((d) => ({ programId: "r2", day: `2026-11-${d}`, done: all })),
+  ];
+  const s = programSummary([first, second, run({ id: "x", userId: "B" })], days, "A", "2026-11-04");
+  assert.equal(s.attempts, 2);
+  assert.equal(s.active.length, 1);
+  assert.equal(s.active[0].dayNumber, 4);
+  assert.equal(s.failed, 1);
+  assert.equal(s.totalDays, 8);
+  assert.deepEqual(s.best, { name: "75 Hard", days: 5, length: 75 });
 });
