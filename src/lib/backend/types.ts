@@ -37,6 +37,12 @@ export interface Backend {
   /** Create (no id) or edit a challenge. Any player can. */
   saveChallenge(input: ChallengeInput): Promise<void>;
   archiveChallenge(id: string): Promise<void>;
+  /** Start your own 75 Hard / Soft (or shorter) run. */
+  startProgram(input: ProgramInput): Promise<void>;
+  /** Tick/untick a task on your run, for today or yesterday. */
+  toggleProgramTask(programId: string, day: string, taskId: string, done: boolean): Promise<void>;
+  /** Finish, quit, or record a failed run before restarting. */
+  endProgram(programId: string, status: "completed" | "failed" | "quit"): Promise<void>;
   /** Mark a week's group punishment done (or back to owed). */
   setPunishmentDone(weekStart: string, done: boolean): Promise<void>;
   updatePlayer(id: string, patch: Partial<Pick<Player, "name" | "avatar" | "color">>): Promise<void>;
@@ -47,3 +53,11 @@ export interface Backend {
 export type GymInput = { name: string; latitude: number; longitude: number; radiusM: number };
 
 export type ChallengeInput = { id?: string; name: string; emoji: string; dailyTarget: number; unit: string };
+
+export type ProgramInput = {
+  name: string;
+  strict: boolean;
+  lengthDays: number;
+  tasks: { id: string; label: string; emoji: string }[];
+  startTomorrow: boolean;
+};

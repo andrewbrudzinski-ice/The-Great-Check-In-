@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getBackend, type Session } from "./backend";
-import type { ChallengeInput, GymInput } from "./backend/types";
+import type { ChallengeInput, GymInput, ProgramInput } from "./backend/types";
 import { computeGame, type GameState } from "./game";
 import { getCurrentFix, LocationError } from "./geo";
 import type { AppData, CheckInResult, Player, Settings } from "./types";
@@ -36,6 +36,9 @@ type Ctx = {
   deleteChallengeLog: (id: string) => Promise<void>;
   saveChallenge: (input: ChallengeInput) => Promise<void>;
   archiveChallenge: (id: string) => Promise<void>;
+  startProgram: (input: ProgramInput) => Promise<void>;
+  toggleProgramTask: (programId: string, day: string, taskId: string, done: boolean) => Promise<void>;
+  endProgram: (programId: string, status: "completed" | "failed" | "quit") => Promise<void>;
   updatePlayer: (id: string, patch: Partial<Pick<Player, "name" | "avatar" | "color">>) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -190,8 +193,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteChallengeLog: write((id: string) => backend.deleteChallengeLog(id)),
       saveChallenge: write((i: ChallengeInput) => backend.saveChallenge(i)),
       archiveChallenge: write((id: string) => backend.archiveChallenge(id)),
+      startProgram: write((i: ProgramInput) => backend.startProgram(i)),
+      // Optimistic: tick shows instantly, rolls back (via reload) if the save fails.
+      toggleProgramTask: async (id: string, day: string, task: string, done: boolean) => {
+        setData((d) => {
+          if (!d) return d;
+          const rest = d.programDays.filter((x) => !(x.programId === id && x.day === day));
+          const cur = d.programDays.find((x) => x.programId === id && x.day === day)?.done ?? [];
+          const next = done ? [...new Set([...cur, task])] : cur.filter((t) => t !== task);
+          return { ...d, programDays: [...rest, { programId: id, day, done: next }] };
+        });
+        try {
+          await backend.toggleProgramTask(id, day, task, done);
+        } finally {
+          await load(false);
+        }
+      },
+      endProgram: write((id: string, status: "completed" | "failed" | "quit") => backend.endProgram(id, status)),
     }),
-    [backend, write],
+    [backend, write, load],
   );
 
   const updatePlayer = useCallback<Ctx["updatePlayer"]>(

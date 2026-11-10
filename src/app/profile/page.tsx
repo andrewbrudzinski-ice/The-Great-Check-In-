@@ -9,6 +9,7 @@ import { GearIcon } from "@/components/Icons";
 import { Ring, SectionTitle, StatusPill } from "@/components/ui";
 import type { PlayerStats } from "@/lib/game";
 import { lifetimeStats } from "@/lib/challenges";
+import { programSummary, runLabel } from "@/lib/programs";
 import { STATUS_META } from "@/lib/game";
 import { formatDistance } from "@/lib/geo";
 import { useGame } from "@/lib/store";
@@ -34,6 +35,7 @@ function Profile() {
   const st = game.stats[player.id];
   const pw = game.standings.find((s) => s.player.id === player.id)!;
   const isMe = player.id === me?.id;
+  const hard = programSummary(data.programs, data.programDays, player.id, game.today);
   const challengeStats = lifetimeStats(data.challenges, data.challengeLogs, player.id, game.today, data.settings.timezone);
   const mineAll = data.checkIns.filter((c) => c.userId === player.id);
   const recent = mineAll.slice(-8).reverse();
@@ -121,6 +123,80 @@ function Profile() {
           suffix="%"
         />
       </dl>
+
+      {(hard.attempts > 0 || isMe) && (
+        <section className="mt-8">
+          <SectionTitle right={<Link href="/hard" className="text-[11px] font-semibold text-muted hover:text-ink">75 Hard →</Link>}>
+            75 Hard
+          </SectionTitle>
+
+          {hard.active.length === 0 ? (
+            <Link href="/hard" className="block rounded-2xl border border-dashed border-line-strong px-4 py-3.5 text-sm text-muted hover:text-ink">
+              {isMe ? "🔥 Not on a run. Start 75 Hard, 75 Soft or a 30/35-day run →" : `${player.name} isn't on a run right now.`}
+            </Link>
+          ) : (
+            <ul className="space-y-3">
+              {hard.active.map((r) => {
+                const p = r.program;
+                const ticked = r.doneToday.filter((id) => p.tasks.some((t) => t.id === id)).length;
+                const pct = Math.min(1, r.completeDays / p.lengthDays);
+                const bad = !!r.failedOn;
+                return (
+                  <li key={p.id}>
+                    <Link
+                      href="/hard"
+                      className={`block rounded-2xl border p-4 ${bad ? "border-problem/30 bg-problem/[0.06]" : "border-orange-400/20 bg-[linear-gradient(120deg,rgba(251,146,60,0.10),transparent_70%)]"}`}
+                    >
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="font-display text-xl font-black">
+                          {p.name}
+                          {p.attempt > 1 && <span className="ml-1.5 text-xs font-semibold text-muted">attempt #{p.attempt}</span>}
+                        </span>
+                        <span className={`text-sm font-semibold ${bad ? "text-problem" : "text-ink-2"}`}>{runLabel(r)}</span>
+                      </div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-3">
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${pct * 100}%`, background: bad ? "var(--color-problem)" : p.strict ? "var(--color-close)" : "var(--color-volt)" }}
+                        />
+                      </div>
+                      <p className="mt-2 text-xs text-muted">
+                        {r.completeDays} of {p.lengthDays} days done
+                        {r.missedDays > 0 && ` · ${r.missedDays} missed`}
+                        {r.started && !bad && (r.todayComplete ? " · ✓ today done" : ` · today ${ticked}/${p.tasks.length}`)}
+                      </p>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {hard.attempts > 0 && (
+            <dl className="mt-3 grid grid-cols-4 gap-3 rounded-2xl border border-line bg-surface/50 p-4">
+              <MiniStat label="Completed" value={String(hard.completed)} tone={hard.completed ? "safe" : undefined} />
+              <MiniStat label="Attempts" value={String(hard.attempts)} />
+              <MiniStat label="Days done" value={String(hard.totalDays)} />
+              <MiniStat label="Best run" value={hard.best ? `${hard.best.days}d` : "–"} />
+            </dl>
+          )}
+          {hard.past.length > 0 && (
+            <p className="mt-2 text-xs text-muted">
+              Past:{" "}
+              {hard.past
+                .slice(0, 4)
+                .map((r) =>
+                  r.program.status === "completed"
+                    ? `${r.program.name} ✓`
+                    : r.program.status === "failed"
+                      ? `${r.program.name} ✕ Day ${r.failedOn?.n ?? "?"}`
+                      : `${r.program.name} (quit)`,
+                )
+                .join(" · ")}
+            </p>
+          )}
+        </section>
+      )}
 
       {challengeStats.length > 0 && (
         <section className="mt-8">

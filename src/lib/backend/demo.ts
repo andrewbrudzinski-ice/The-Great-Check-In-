@@ -5,11 +5,12 @@
 import { DEFAULT_SETTINGS, PLAYER_COLORS } from "../config";
 import { distanceM } from "../geo";
 import { matchGym } from "../gyms";
-import type { AppData, Challenge, ChallengeLog, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
+import { PRESETS } from "../programs";
+import type { AppData, Challenge, ChallengeLog, Program, ProgramDay, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
 import { addDays, localDate, midnightIn, weekKey, weekStartOf } from "../week";
 import type { Backend, GymInput, Session } from "./types";
 
-const KEY = "tgci-demo-v7";
+const KEY = "tgci-demo-v8";
 const SESSION_KEY = "tgci-demo-session";
 
 type DemoDB = AppData;
@@ -135,7 +136,33 @@ function seed(): DemoDB {
       }
     }
   }
-  const db: DemoDB = { players, checkIns, results: [], punishments: [], gyms, challenges: [pushups], challengeLogs, settings };
+  // 75 Hard / Soft runs: Andrew on Day 23, Mike on Soft with a couple of misses,
+  // John failed his first Hard attempt on Day 6 and is on attempt #2.
+  const [hard, soft] = PRESETS;
+  const programs: Program[] = [];
+  const programDays: ProgramDay[] = [];
+  const addRun = (
+    id: string, userId: string, preset: typeof hard, startBack: number, attempt: number,
+    status: Program["status"], dayDone: (i: number, ids: string[]) => string[], length = 75,
+  ) => {
+    const startDate = addDays(today, -startBack);
+    programs.push({
+      id, userId, name: `${length} ${preset.title}`, strict: preset.strict, lengthDays: length, tasks: preset.tasks,
+      startDate, status, attempt, createdAt: midnightIn(startDate, tz).toISOString(),
+      endedAt: status === "active" ? null : now.toISOString(),
+    });
+    const ids = preset.tasks.map((t) => t.id);
+    for (let i = 0; i <= startBack; i++) {
+      const done = dayDone(i, ids);
+      if (done.length) programDays.push({ programId: id, day: addDays(startDate, i), done });
+    }
+  };
+  addRun("r-andrew", "p-andrew", hard, 22, 1, "active", (i, ids) => (i === 22 ? ids.slice(0, 3) : ids));
+  addRun("r-mike", "p-mike", soft, 9, 1, "active", (i, ids) => (i === 3 || i === 7 ? ids.slice(0, 2) : i === 9 ? [] : ids));
+  addRun("r-john-1", "p-john", hard, 15, 1, "failed", (i, ids) => (i < 5 ? ids : i === 5 ? ids.slice(0, 4) : []));
+  addRun("r-john-2", "p-john", hard, 2, 2, "active", (i, ids) => (i === 2 ? ids.slice(0, 1) : ids));
+
+  const db: DemoDB = { players, checkIns, results: [], punishments: [], gyms, challenges: [pushups], challengeLogs, programs, programDays, settings };
   freeze(db, now);
   // Older debts were paid off; the most recent two are still owed.
   const payers = ["p-mike", "p-andrew", "p-john"];
@@ -202,7 +229,7 @@ function refreeze(db: DemoDB, wk: string) {
 function read(): DemoDB {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { punishments: [], gyms: [], challenges: [], challengeLogs: [], ...JSON.parse(raw) };
+    if (raw) return { punishments: [], gyms: [], challenges: [], challengeLogs: [], programs: [], programDays: [], ...JSON.parse(raw) };
   } catch {
     /* fall through to a fresh seed */
   }
@@ -449,6 +476,53 @@ export function createDemoBackend(): Backend {
           createdAt: new Date().toISOString(),
         });
       }
+      write(db);
+    },
+    async startProgram({ name, strict, lengthDays, tasks, startTomorrow }) {
+      const session = currentSession();
+      if (!session) throw new Error("Sign in first.");
+      const db = read();
+      if (!tasks.length || tasks.length > 10) throw new Error("Add between 1 and 10 daily tasks.");
+      if (lengthDays < 7 || lengthDays > 365) throw new Error("Pick a length between 7 and 365 days.");
+      if (db.programs.filter((p) => p.userId === session.userId && p.status === "active").length >= 3)
+        throw new Error("You already have 3 runs going. Finish or quit one first.");
+      const prev = db.programs.filter((p) => p.userId === session.userId && p.name.toLowerCase() === name.trim().toLowerCase()).length;
+      const today = localDate(new Date(), db.settings.timezone);
+      db.programs.push({
+        id: crypto.randomUUID?.() ?? String(Date.now()),
+        userId: session.userId,
+        name: name.trim(),
+        strict,
+        lengthDays,
+        tasks,
+        startDate: startTomorrow ? addDays(today, 1) : today,
+        status: "active",
+        attempt: prev + 1,
+        createdAt: new Date().toISOString(),
+        endedAt: null,
+      });
+      write(db);
+    },
+    async toggleProgramTask(programId, day, taskId, done) {
+      const session = currentSession();
+      const db = read();
+      const p = db.programs.find((x) => x.id === programId && x.userId === session?.userId && x.status === "active");
+      if (!p) throw new Error("That run isn't active anymore.");
+      const today = localDate(new Date(), db.settings.timezone);
+      if (day > today || day < addDays(today, -1)) throw new Error("That day is locked. You can only tick today or yesterday.");
+      if (day < p.startDate || day > addDays(p.startDate, p.lengthDays - 1)) throw new Error("That day isn't part of this run.");
+      let row = db.programDays.find((d) => d.programId === programId && d.day === day);
+      if (!row) db.programDays.push((row = { programId, day, done: [] }));
+      row.done = done ? [...new Set([...row.done, taskId])] : row.done.filter((t) => t !== taskId);
+      write(db);
+    },
+    async endProgram(programId, status) {
+      const session = currentSession();
+      const db = read();
+      const p = db.programs.find((x) => x.id === programId && x.userId === session?.userId && x.status === "active");
+      if (!p) throw new Error("That run isn't active anymore.");
+      p.status = status;
+      p.endedAt = new Date().toISOString();
       write(db);
     },
     async archiveChallenge(id) {

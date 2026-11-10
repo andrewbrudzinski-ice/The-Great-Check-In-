@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
-import { HistoryIcon, HomeIcon, MapIcon, TrophyIcon, UserIcon } from "./Icons";
+import { FlameIcon, HistoryIcon, HomeIcon, MapIcon, TrophyIcon, UserIcon } from "./Icons";
 
 const TABS = [
   { href: "/", label: "Home", Icon: HomeIcon, also: "/challenges" },
   { href: "/map", label: "Map", Icon: MapIcon },
   { href: "/standings", label: "Standings", Icon: TrophyIcon, also: "/punishments" },
+  { href: "/hard", label: "75 Hard", Icon: FlameIcon },
   { href: "/history", label: "History", Icon: HistoryIcon },
   { href: "/profile", label: "Profile", Icon: UserIcon },
 ];
@@ -21,7 +22,7 @@ export function BottomNav() {
       style={{ paddingBottom: "var(--safe-bottom)" }}
       aria-label="Main"
     >
-      <ul className="mx-auto flex max-w-lg items-stretch justify-around px-2">
+      <ul className="mx-auto flex max-w-lg items-stretch justify-around px-1">
         {TABS.map(({ href, label, Icon, also }) => {
           const active = (href === "/" ? pathname === "/" : pathname.startsWith(href)) || (!!also && pathname.startsWith(also));
           return (
@@ -29,7 +30,7 @@ export function BottomNav() {
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`relative flex flex-col items-center gap-1 pt-2.5 pb-2 text-[10px] font-semibold tracking-wide transition-colors ${
+                className={`relative flex flex-col items-center gap-1 pt-2.5 pb-2 text-[10px] font-semibold whitespace-nowrap transition-colors ${
                   active ? "text-ink" : "text-muted hover:text-ink-2"
                 }`}
               >
