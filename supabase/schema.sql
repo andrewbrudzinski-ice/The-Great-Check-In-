@@ -43,6 +43,10 @@ create table if not exists public.users (
   created_at timestamptz not null default now()
 );
 
+-- Per-player weekly goal (e.g. 3 instead of the club's 5). Null = club default.
+alter table public.users add column if not exists weekly_requirement int
+  check (weekly_requirement between 1 and 14);
+
 -- ----------------------------------------------------------------------------
 -- Settings (single row)
 -- ----------------------------------------------------------------------------
@@ -369,9 +373,9 @@ begin
       returning id into wid;
 
       insert into public.weekly_results (week_id, user_id, check_in_count, requirement, completed, punishment)
-      select wid, u.id, count(c.id), s.weekly_requirement,
-             count(c.id) >= s.weekly_requirement,
-             case when count(c.id) < s.weekly_requirement then s.punishment end
+      select wid, u.id, count(c.id), coalesce(u.weekly_requirement, s.weekly_requirement),
+             count(c.id) >= coalesce(u.weekly_requirement, s.weekly_requirement),
+             case when count(c.id) < coalesce(u.weekly_requirement, s.weekly_requirement) then s.punishment end
       from public.users u
       left join public.check_ins c
         on c.user_id = u.id
@@ -379,7 +383,7 @@ begin
        and (c.checked_in_at at time zone s.timezone) <  wk + 7
       -- the week you join is a warm-up unless you joined on the Monday
       where (u.created_at at time zone s.timezone)::date <= wk
-      group by u.id
+      group by u.id, u.weekly_requirement
       on conflict (week_id, user_id) do nothing;
 
       -- Anyone short → the whole group owes the punishment.
@@ -484,6 +488,26 @@ grant execute on function public.add_gym(text, double precision, double precisio
 grant execute on function public.approve_gym(uuid) to authenticated;
 grant execute on function public.update_gym(uuid, text, double precision, double precision, int) to authenticated;
 grant execute on function public.archive_gym(uuid) to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- Admin: set one player's weekly goal (null = back to the club default).
+-- Applies to the current week; finished weeks keep the goal they had.
+-- ----------------------------------------------------------------------------
+create or replace function public.set_player_requirement(p_user uuid, p_requirement int)
+returns json language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then
+    return json_build_object('ok', false, 'code', 'forbidden');
+  end if;
+  if p_requirement is not null and p_requirement not between 1 and 14 then
+    return json_build_object('ok', false, 'code', 'bad_requirement');
+  end if;
+  update public.users set weekly_requirement = p_requirement where id = p_user;
+  if not found then return json_build_object('ok', false, 'code', 'not_found'); end if;
+  return json_build_object('ok', true);
+end $$;
+revoke all on function public.set_player_requirement(uuid, int) from public, anon;
+grant execute on function public.set_player_requirement(uuid, int) to authenticated;
 
 -- ----------------------------------------------------------------------------
 -- Admin manual check-ins (for when someone forgot to tap the button)

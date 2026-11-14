@@ -101,6 +101,12 @@ Alongside the gym goal, the group can track daily challenges such as **100 pushu
 
 Logs go through `log_challenge()`, which stamps your user, the club-timezone day and the target at that moment, so changing a target never rewrites past days. Existing installs: run `supabase/migrations/003_daily_challenges.sql` once.
 
+### Adding players later and per-player goals
+
+New players can join at any time (sign up with the link and invite code). Nothing restarts: history, streaks and punishments stay. The week someone joins is a warm-up unless they join on its Monday.
+
+The admin can give one player a different weekly goal (e.g. 3 instead of the club's 5) under **Settings → Players → Edit → Weekly check-in goal**. Their card, status, trash talk and weekly results use their own number; finished weeks keep the goal they were played under. Set through `set_player_requirement()` (admin only). Existing installs: run `supabase/migrations/005_player_goals.sql` once.
+
 ### Admin manual check-ins
 
 Someone forgot to tap the button? The admin can add a check-in for them under **Settings → Check someone in**: pick the player, the gym, the time (up to 14 days back) and an optional note. Manual check-ins run through `admin_check_in()`. It is admin-only, keeps the same cooldown so a visit can't be counted twice, and carries no GPS. They're labelled "✍️ added by …" everywhere, so the group can see them. If the time falls in an already-finished week, that week is re-counted, and an owed punishment is cleared if the miss is fixed. Manual check-ins can be removed again. GPS check-ins can't be.

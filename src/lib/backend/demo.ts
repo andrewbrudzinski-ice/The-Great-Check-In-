@@ -10,7 +10,7 @@ import type { AppData, Challenge, ChallengeLog, Program, ProgramDay, CheckIn, Ch
 import { addDays, localDate, midnightIn, weekKey, weekStartOf } from "../week";
 import type { Backend, GymInput, Session } from "./types";
 
-const KEY = "tgci-demo-v8";
+const KEY = "tgci-demo-v9";
 const SESSION_KEY = "tgci-demo-session";
 
 type DemoDB = AppData;
@@ -45,9 +45,9 @@ function seed(): DemoDB {
   const created = midnightIn(firstWeek, tz).toISOString();
 
   const players: Player[] = [
-    { id: "p-andrew", name: "Andrew", avatar: "🦍", color: PLAYER_COLORS[0], isAdmin: true, createdAt: created },
-    { id: "p-mike", name: "Mike", avatar: "🦈", color: PLAYER_COLORS[1], isAdmin: false, createdAt: created },
-    { id: "p-john", name: "John", avatar: "🐻", color: PLAYER_COLORS[2], isAdmin: false, createdAt: created },
+    { id: "p-andrew", name: "Andrew", avatar: "🦍", color: PLAYER_COLORS[0], isAdmin: true, createdAt: created, weeklyRequirement: null },
+    { id: "p-mike", name: "Mike", avatar: "🦈", color: PLAYER_COLORS[1], isAdmin: false, createdAt: created, weeklyRequirement: null },
+    { id: "p-john", name: "John", avatar: "🐻", color: PLAYER_COLORS[2], isAdmin: false, createdAt: created, weeklyRequirement: null },
   ];
   const gym = (id: string, name: string, latitude: number, longitude: number, radiusM: number, createdBy: string, status: Gym["status"] = "approved"): Gym => ({
     id, name, latitude, longitude, radiusM, status, createdBy,
@@ -186,12 +186,13 @@ function freeze(db: DemoDB, now: Date) {
     for (const p of db.players) {
       if (localDate(p.createdAt, tz) > wk) continue; // join week is a warm-up
       const count = db.checkIns.filter((c) => c.userId === p.id && weekKey(c.checkedInAt, tz) === wk).length;
-      const completed = count >= db.settings.weeklyRequirement;
+      const requirement = p.weeklyRequirement ?? db.settings.weeklyRequirement;
+      const completed = count >= requirement;
       const res: WeekResult = {
         weekStart: wk,
         userId: p.id,
         count,
-        requirement: db.settings.weeklyRequirement,
+        requirement,
         completed,
         punishment: completed ? null : db.settings.punishment,
       };
@@ -384,6 +385,16 @@ export function createDemoBackend(): Backend {
       const admin = db.players.find((p) => p.id === session.userId)?.isAdmin;
       if (!admin && g.createdBy !== session.userId) throw new Error("Only the admin or whoever added it can remove a gym.");
       g.archived = true;
+      write(db);
+    },
+    async setPlayerRequirement(id, requirement) {
+      const session = currentSession();
+      const db = read();
+      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin) throw new Error("Only the admin can change someone's goal.");
+      if (requirement != null && (requirement < 1 || requirement > 14)) throw new Error("Pick a goal between 1 and 14.");
+      const p = db.players.find((x) => x.id === id);
+      if (!p) throw new Error("That player doesn't exist.");
+      p.weeklyRequirement = requirement;
       write(db);
     },
     async adminCheckIn({ userId, gymId, at, note }) {

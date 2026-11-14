@@ -205,7 +205,7 @@ export default function Home() {
         <Link href="/punishments" className="group block">
           <p className="font-display text-xl leading-snug font-extrabold">“{s.punishment}”</p>
           <p className="mt-1.5 text-xs text-muted">
-            If <b className="text-ink-2">anyone</b> finishes under {s.weeklyRequirement} by Sunday night, the whole group does it.
+            If <b className="text-ink-2">anyone</b> misses their weekly goal by Sunday night, the whole group does it.
           </p>
           <p className="mt-3 flex items-center justify-between rounded-2xl border border-line px-4 py-3 text-sm group-hover:border-line-strong">
             {game.owed.length === 0 ? (

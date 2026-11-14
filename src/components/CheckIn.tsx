@@ -117,7 +117,7 @@ export function CheckInButton() {
       <SuccessOverlay
         success={success}
         onClose={() => setSuccess(null)}
-        required={s.weeklyRequirement}
+        required={mine?.required ?? s.weeklyRequirement}
         tz={s.timezone}
       />
       <FailureSheet outcome={failure} onClose={() => setFailure(null)} tz={s.timezone} demo={mode === "demo"} />

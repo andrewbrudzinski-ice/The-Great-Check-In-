@@ -4,7 +4,7 @@ import { computeChallenges, lifetimeStats, quickAmounts } from "./challenges.ts"
 import type { Challenge, ChallengeLog, Player } from "./types.ts";
 
 const tz = "America/New_York";
-const players: Player[] = ["A", "B"].map((id) => ({ id, name: id, avatar: "x", color: "#fff", isAdmin: false, createdAt: "2026-10-01T12:00:00Z" }));
+const players: Player[] = ["A", "B"].map((id) => ({ id, name: id, avatar: "x", color: "#fff", isAdmin: false, createdAt: "2026-10-01T12:00:00Z", weeklyRequirement: null }));
 const pushups: Challenge = { id: "p", name: "Pushups", emoji: "💪", dailyTarget: 100, unit: "reps", archived: false, createdBy: null, createdAt: "2026-10-20T12:00:00Z" };
 let n = 0;
 const log = (userId: string, day: string, amount: number, target = 100): ChallengeLog =>

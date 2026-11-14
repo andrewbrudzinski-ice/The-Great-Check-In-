@@ -65,7 +65,7 @@ export default function StandingsPage() {
         </ol>
       </LayoutGroup>
       <p className="mt-2 px-2 text-[11px] text-muted">
-        Hitting {s.weeklyRequirement} is what matters. Ties go to whoever got there first.
+        Hitting your weekly goal is what matters. Ties go to whoever got there first.
       </p>
 
       {/* Who's in trouble */}

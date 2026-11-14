@@ -92,7 +92,7 @@ export default function PunishmentsPage() {
         </SectionTitle>
         <p className="font-display text-2xl leading-tight font-extrabold">“{s.punishment}”</p>
         <p className="mt-2 text-sm text-muted">
-          If anyone finishes a week under {s.weeklyRequirement} check-ins, the <b className="text-ink-2">whole group</b> does it together.
+          If anyone finishes a week under their check-in goal, the <b className="text-ink-2">whole group</b> does it together.
         </p>
         <p className="mt-3 text-sm">
           {short.length === 0 ? (
