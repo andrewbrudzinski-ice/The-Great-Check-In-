@@ -104,7 +104,8 @@ function byTime(a: CheckIn, b: CheckIn) {
 export function computeGame(data: AppData, now: Date = new Date()): GameState {
   const { players, settings, results } = data;
   const tz = settings.timezone;
-  const req = settings.weeklyRequirement;
+  // Each player can have their own weekly goal; otherwise the club's.
+  const reqFor = (p: Player) => p.weeklyRequirement ?? settings.weeklyRequirement;
   const checkIns = [...data.checkIns].sort(byTime);
 
   const today = localDate(now, tz);
@@ -126,6 +127,7 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
   const rows = players.map((player) => {
     const mine = thisWeek.filter((c) => c.userId === player.id);
     const count = mine.length;
+    const req = reqFor(player);
     const remaining = Math.max(0, req - count);
     const last = mine[mine.length - 1] ?? null;
     return {
@@ -203,6 +205,7 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
           .filter((p) => localDate(p.createdAt, tz) <= wk)
           .map((player) => {
             const count = list.filter((c) => c.userId === player.id).length;
+            const req = reqFor(player);
             const completed = count >= req;
             return { player, count, requirement: req, completed, punishment: completed ? null : settings.punishment };
           });

@@ -6,6 +6,8 @@ export type Player = {
   color: string;
   isAdmin: boolean;
   createdAt: string;
+  /** Personal weekly check-in goal; null = the club's default. */
+  weeklyRequirement: number | null;
 };
 
 export type CheckIn = {

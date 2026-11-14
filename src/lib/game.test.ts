@@ -25,7 +25,7 @@ test("status thresholds", () => {
 });
 
 const players: Player[] = ["A", "B", "C"].map((n, i) => ({
-  id: n, name: n, avatar: "💪", color: "#fff", isAdmin: i === 0, createdAt: "2026-09-14T12:00:00Z",
+  id: n, name: n, avatar: "💪", color: "#fff", isAdmin: i === 0, createdAt: "2026-09-14T12:00:00Z", weeklyRequirement: null,
 }));
 
 function ci(userId: string, date: string, hour = 12): CheckIn {
@@ -110,7 +110,7 @@ test("nobody is singled out in a full tie", () => {
 
 test("joining mid-week is a warm-up", () => {
   const d = data([ci("A", "2026-10-05")]);
-  d.players = [...players, { id: "D", name: "D", avatar: "x", color: "#fff", isAdmin: false, createdAt: "2026-09-24T12:00:00Z" }];
+  d.players = [...players, { id: "D", name: "D", avatar: "x", color: "#fff", isAdmin: false, createdAt: "2026-09-24T12:00:00Z", weeklyRequirement: null }];
   const g = computeGame(d, new Date("2026-10-06T15:00:00Z"));
   const w21 = g.history.find((h) => h.weekStart === "2026-09-21")!;
   assert.equal(w21.rows.some((r) => r.player.id === "D"), false); // joined Thursday
@@ -139,4 +139,24 @@ test("group punishment tracker", () => {
   assert.deepEqual(g.paid.map((w) => w.weekStart), ["2026-09-28"]);
   assert.equal(g.paid[0].punishment, "Group sauna");
   assert.deepEqual(g.owed.map((w) => w.weekStart), ["2026-09-14"]);
+});
+
+test("per-player weekly goals", () => {
+  const ins: CheckIn[] = [];
+  // Last week: A 5, B 4, C 3 — C's goal is 3, so only B missed.
+  for (const [u, n] of [["A", 5], ["B", 4], ["C", 3]] as const) for (let d = 0; d < n; d++) ins.push(ci(u, addDays("2026-09-28", d)));
+  // This week: C has 3 → already safe; A has 3 → 2 to go.
+  for (let d = 0; d < 3; d++) ins.push(ci("C", addDays("2026-10-05", 0), 6 + d * 5), ci("A", addDays("2026-10-05", 0), 6 + d * 5));
+  const d = data(ins);
+  d.players = players.map((p) => (p.id === "C" ? { ...p, weeklyRequirement: 3 } : p));
+  const g = computeGame(d, new Date("2026-10-06T15:00:00Z"));
+  const c = g.standings.find((s) => s.player.id === "C")!;
+  assert.equal(c.required, 3);
+  assert.equal(c.completed, true);
+  assert.equal(c.status, "safe");
+  assert.equal(g.standings.find((s) => s.player.id === "A")!.remaining, 2);
+  assert.equal(g.standings[0].player.id, "C"); // done ranks first
+  const last = g.history.find((w) => w.weekStart === "2026-09-28")!;
+  assert.deepEqual(last.culprits.map((r) => r.player.id), ["B"]);
+  assert.equal(last.rows.find((r) => r.player.id === "C")!.requirement, 3);
 });

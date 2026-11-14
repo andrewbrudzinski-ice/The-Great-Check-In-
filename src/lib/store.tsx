@@ -30,6 +30,7 @@ type Ctx = {
   approveGym: (id: string) => Promise<void>;
   updateGym: (id: string, input: GymInput) => Promise<void>;
   archiveGym: (id: string) => Promise<void>;
+  setPlayerRequirement: (id: string, requirement: number | null) => Promise<void>;
   adminCheckIn: (input: { userId: string; gymId: string; at: string; note: string }) => Promise<void>;
   adminRemoveCheckIn: (id: string) => Promise<void>;
   logChallenge: (challengeId: string, amount: number) => Promise<void>;
@@ -187,6 +188,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       approveGym: write((id: string) => backend.approveGym(id)),
       updateGym: write((id: string, i: GymInput) => backend.updateGym(id, i)),
       archiveGym: write((id: string) => backend.archiveGym(id)),
+      setPlayerRequirement: write((id: string, r: number | null) => backend.setPlayerRequirement(id, r)),
       adminCheckIn: write((i: { userId: string; gymId: string; at: string; note: string }) => backend.adminCheckIn(i)),
       adminRemoveCheckIn: write((id: string) => backend.adminRemoveCheckIn(id)),
       logChallenge: write((id: string, amount: number) => backend.logChallenge(id, amount)),

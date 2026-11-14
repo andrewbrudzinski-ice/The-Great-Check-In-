@@ -13,6 +13,7 @@ const toPlayer = (r: Row): Player => ({
   color: r.color,
   isAdmin: r.is_admin,
   createdAt: r.created_at,
+  weeklyRequirement: r.weekly_requirement ?? null,
 });
 
 const toCheckIn = (r: Row): CheckIn => ({
@@ -370,6 +371,17 @@ export function createSupabaseBackend(): Backend {
 
     async archiveGym(id) {
       await gymRpc("archive_gym", { p_gym: id });
+    },
+
+    async setPlayerRequirement(id, requirement) {
+      const { data, error } = await sb.rpc("set_player_requirement", { p_user: id, p_requirement: requirement });
+      if (error) {
+        if (/could not find the function/i.test(error.message))
+          throw new Error("Per-player goals aren't set up in the database yet. Run supabase/migrations/005_player_goals.sql.");
+        throw new Error(error.message);
+      }
+      const r = data as Row;
+      if (!r?.ok) throw new Error(r?.code === "forbidden" ? "Only the admin can change someone's goal." : "Pick a goal between 1 and 14.");
     },
 
     async adminCheckIn({ userId, gymId, at, note }) {

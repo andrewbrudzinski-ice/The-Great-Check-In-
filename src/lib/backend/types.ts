@@ -26,6 +26,8 @@ export interface Backend {
   approveGym(id: string): Promise<void>;
   updateGym(id: string, input: GymInput): Promise<void>;
   archiveGym(id: string): Promise<void>;
+  /** Admin: set one player's weekly goal (null = club default). */
+  setPlayerRequirement(id: string, requirement: number | null): Promise<void>;
   /** Admin: check a player in who forgot (optionally backdated, max 14 days). */
   adminCheckIn(input: { userId: string; gymId: string; at: string; note: string }): Promise<void>;
   /** Admin: remove a manual check-in added by mistake. */

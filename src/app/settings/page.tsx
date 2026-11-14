@@ -61,7 +61,7 @@ export default function SettingsPage() {
         <SectionTitle>Players</SectionTitle>
         <div className="space-y-3">
           {players.map((p) => (
-            <PlayerEditor key={p.id} player={p} canEdit={isAdmin || p.id === me?.id} />
+            <PlayerEditor key={p.id} player={p} canEdit={isAdmin || p.id === me?.id} canSetGoal={!!me?.isAdmin} clubGoal={data.settings.weeklyRequirement} />
           ))}
         </div>
       </section>
@@ -159,7 +159,17 @@ function Label({ children, hint }: { children: ReactNode; hint?: ReactNode }) {
   );
 }
 
-function PlayerEditor({ player, canEdit }: { player: Player; canEdit: boolean }) {
+function PlayerEditor({
+  player,
+  canEdit,
+  canSetGoal,
+  clubGoal,
+}: {
+  player: Player;
+  canEdit: boolean;
+  canSetGoal: boolean;
+  clubGoal: number;
+}) {
   const { updatePlayer } = useGame();
   const [name, setName] = useState(player.name);
   const [avatar, setAvatar] = useState(player.avatar);
@@ -173,9 +183,13 @@ function PlayerEditor({ player, canEdit }: { player: Player; canEdit: boolean })
       <button className="flex w-full items-center gap-3 p-3 text-left" onClick={() => setOpen(!open)} aria-expanded={open}>
         <Avatar player={{ name, avatar, color }} size={40} />
         <span className="flex-1 font-display text-lg font-extrabold">{name || "—"}</span>
+        {player.weeklyRequirement != null && player.weeklyRequirement !== clubGoal && (
+          <span className="rounded bg-volt/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-volt">GOAL {player.weeklyRequirement}/WK</span>
+        )}
         {player.isAdmin && <span className="rounded bg-surface-3 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-muted">ADMIN</span>}
-        <span className="text-xs text-muted">{canEdit ? (open ? "Close" : "Edit") : ""}</span>
+        <span className="text-xs text-muted">{canEdit || canSetGoal ? (open ? "Close" : "Edit") : ""}</span>
       </button>
+      {open && canSetGoal && <WeeklyGoal player={player} clubGoal={clubGoal} />}
       {open && canEdit && (
         <div className="border-t border-line p-3">
           <label className="block">
@@ -224,6 +238,47 @@ function PlayerEditor({ player, canEdit }: { player: Player; canEdit: boolean })
   );
 }
 
+/** Admin-only: a personal weekly check-in goal, e.g. 3 instead of the club's 5. */
+function WeeklyGoal({ player, clubGoal }: { player: Player; clubGoal: number }) {
+  const { setPlayerRequirement } = useGame();
+  const [custom, setCustom] = useState(player.weeklyRequirement != null);
+  const [goal, setGoal] = useState(player.weeklyRequirement ?? clubGoal);
+  const { state, run } = useSaver();
+  const current = player.weeklyRequirement;
+  const next = custom ? goal : null;
+  const dirty = next !== current;
+
+  return (
+    <div className="border-t border-line p-3">
+      <Label hint="admin only">Weekly check-in goal</Label>
+      <div className="flex gap-2">
+        <button
+          onClick={() => setCustom(false)}
+          className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold ${!custom ? "bg-ink text-bg" : "bg-surface-2 text-ink-2"}`}
+        >
+          Club default ({clubGoal})
+        </button>
+        <button
+          onClick={() => setCustom(true)}
+          className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold ${custom ? "bg-ink text-bg" : "bg-surface-2 text-ink-2"}`}
+        >
+          Custom
+        </button>
+      </div>
+      {custom && (
+        <div className="mt-3">
+          <Stepper value={goal} min={1} max={14} onChange={setGoal} />
+        </div>
+      )}
+      <p className="mt-2 text-xs text-muted">
+        {custom ? `${player.name} needs ${goal} check-in${goal === 1 ? "" : "s"} a week.` : `${player.name} uses the club goal of ${clubGoal}.`} Applies
+        from this week; finished weeks keep their old goal.
+      </p>
+      <SaveRow state={state} disabled={!dirty} onSave={() => run(() => setPlayerRequirement(player.id, next))} />
+    </div>
+  );
+}
+
 function RulesSection({ settings, disabled }: { settings: Settings; disabled: boolean }) {
   const { updateSettings } = useGame();
   const [req, setReq] = useState(settings.weeklyRequirement);
@@ -249,7 +304,7 @@ function RulesSection({ settings, disabled }: { settings: Settings; disabled: bo
         </label>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>Check-ins per week</Label>
+            <Label>Check-ins per week (default)</Label>
             <Stepper value={req} min={1} max={14} onChange={setReq} disabled={disabled} />
           </div>
           <div>
