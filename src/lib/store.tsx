@@ -38,6 +38,9 @@ type Ctx = {
   saveChallenge: (input: ChallengeInput) => Promise<void>;
   archiveChallenge: (id: string) => Promise<void>;
   startProgram: (input: ProgramInput) => Promise<void>;
+  sendMessage: (body: string) => Promise<void>;
+  deleteMessage: (id: string) => Promise<void>;
+  toggleReaction: (messageId: string, emoji: string) => Promise<void>;
   toggleProgramTask: (programId: string, day: string, taskId: string, done: boolean) => Promise<void>;
   endProgram: (programId: string, status: "completed" | "failed" | "quit") => Promise<void>;
   updatePlayer: (id: string, patch: Partial<Pick<Player, "name" | "avatar" | "color">>) => Promise<void>;
@@ -196,6 +199,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       saveChallenge: write((i: ChallengeInput) => backend.saveChallenge(i)),
       archiveChallenge: write((id: string) => backend.archiveChallenge(id)),
       startProgram: write((i: ProgramInput) => backend.startProgram(i)),
+      // Optimistic: your message shows instantly; the reload swaps in the real one.
+      sendMessage: async (body: string) => {
+        const temp = { id: `pending-${Date.now()}`, userId: session?.userId ?? "", body: body.trim(), deleted: false, createdAt: new Date().toISOString() };
+        setData((d) => (d ? { ...d, messages: [...d.messages, temp] } : d));
+        try {
+          await backend.sendMessage(body);
+        } finally {
+          await load(false);
+        }
+      },
+      deleteMessage: write((id: string) => backend.deleteMessage(id)),
+      toggleReaction: write((id: string, emoji: string) => backend.toggleReaction(id, emoji)),
       // Optimistic: tick shows instantly, rolls back (via reload) if the save fails.
       toggleProgramTask: async (id: string, day: string, task: string, done: boolean) => {
         setData((d) => {
@@ -213,7 +228,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
       endProgram: write((id: string, status: "completed" | "failed" | "quit") => backend.endProgram(id, status)),
     }),
-    [backend, write, load],
+    [backend, write, load, session?.userId],
   );
 
   const updatePlayer = useCallback<Ctx["updatePlayer"]>(

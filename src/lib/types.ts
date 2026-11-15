@@ -99,6 +99,17 @@ export type Program = {
 
 export type ProgramDay = { programId: string; day: string; done: string[] };
 
+export type ChatMessage = {
+  id: string;
+  userId: string;
+  body: string;
+  deleted: boolean;
+  createdAt: string;
+};
+
+export const REACTIONS = ["👍", "🔥", "😂", "💀", "💪", "❤️"] as const;
+export type MessageReaction = { messageId: string; userId: string; emoji: string };
+
 /** A frozen result for one player in one finished week. */
 export type WeekResult = {
   weekStart: string; // YYYY-MM-DD (Monday)
@@ -128,6 +139,9 @@ export type AppData = {
   challengeLogs: ChallengeLog[];
   programs: Program[];
   programDays: ProgramDay[];
+  /** The most recent chat messages, oldest first. */
+  messages: ChatMessage[];
+  reactions: MessageReaction[];
   settings: Settings;
 };
 

@@ -105,3 +105,15 @@ export const SkullIcon = (p: P) => (
     <path d="M10.5 20v-2M13.5 20v-2" />
   </svg>
 );
+export const ChatIcon = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M20.5 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 20.5 12z" />
+    <path d="M8.5 10.5h7M8.5 13.5h4.5" />
+  </svg>
+);
+export const SendIcon = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4.5 12 20 4.5 15.5 20l-3.2-6.3z" />
+    <path d="m12.3 13.7 7.7-9.2" />
+  </svg>
+);

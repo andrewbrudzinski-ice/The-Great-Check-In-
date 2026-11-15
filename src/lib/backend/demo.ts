@@ -6,11 +6,11 @@ import { DEFAULT_SETTINGS, PLAYER_COLORS } from "../config";
 import { distanceM } from "../geo";
 import { matchGym } from "../gyms";
 import { PRESETS } from "../programs";
-import type { AppData, Challenge, ChallengeLog, Program, ProgramDay, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
+import type { AppData, Challenge, ChallengeLog, ChatMessage, MessageReaction, Program, ProgramDay, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
 import { addDays, localDate, midnightIn, weekKey, weekStartOf } from "../week";
 import type { Backend, GymInput, Session } from "./types";
 
-const KEY = "tgci-demo-v9";
+const KEY = "tgci-demo-v10";
 const SESSION_KEY = "tgci-demo-session";
 
 type DemoDB = AppData;
@@ -162,7 +162,26 @@ function seed(): DemoDB {
   addRun("r-john-1", "p-john", hard, 15, 1, "failed", (i, ids) => (i < 5 ? ids : i === 5 ? ids.slice(0, 4) : []));
   addRun("r-john-2", "p-john", hard, 2, 2, "active", (i, ids) => (i === 2 ? ids.slice(0, 1) : ids));
 
-  const db: DemoDB = { players, checkIns, results: [], punishments: [], gyms, challenges: [pushups], challengeLogs, programs, programDays, settings };
+  // A bit of chat history.
+  const chat: [string, number, string][] = [
+    ["p-andrew", 26, "Week starts now. Nobody's buying lunch this time 😤"],
+    ["p-mike", 25, "Says the guy who's been at 1/5 since Monday"],
+    ["p-john", 24, "Gym at 6 tomorrow? I need a ride"],
+    ["p-andrew", 23.5, "I'll grab you"],
+    ["p-mike", 5, "Leg day. Pray for me"],
+    ["p-john", 2, "Just hit 100 pushups. Fear me 💪"],
+  ];
+  const messages: ChatMessage[] = chat
+    .map(([userId, hoursAgo, body], i) => ({ id: `m-${i}`, userId, body, deleted: false, createdAt: new Date(now.getTime() - hoursAgo * 3600000).toISOString() }))
+    .filter((m) => m.createdAt < now.toISOString());
+  const reactions: MessageReaction[] = [
+    { messageId: "m-1", userId: "p-john", emoji: "😂" },
+    { messageId: "m-1", userId: "p-andrew", emoji: "💀" },
+    { messageId: "m-5", userId: "p-andrew", emoji: "🔥" },
+    { messageId: "m-5", userId: "p-mike", emoji: "🔥" },
+  ];
+
+  const db: DemoDB = { players, checkIns, results: [], punishments: [], gyms, challenges: [pushups], challengeLogs, programs, programDays, messages, reactions, settings };
   freeze(db, now);
   // Older debts were paid off; the most recent two are still owed.
   const payers = ["p-mike", "p-andrew", "p-john"];
@@ -230,7 +249,7 @@ function refreeze(db: DemoDB, wk: string) {
 function read(): DemoDB {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { punishments: [], gyms: [], challenges: [], challengeLogs: [], programs: [], programDays: [], ...JSON.parse(raw) };
+    if (raw) return { punishments: [], gyms: [], challenges: [], challengeLogs: [], programs: [], programDays: [], messages: [], reactions: [], ...JSON.parse(raw) };
   } catch {
     /* fall through to a fresh seed */
   }
@@ -487,6 +506,37 @@ export function createDemoBackend(): Backend {
           createdAt: new Date().toISOString(),
         });
       }
+      write(db);
+    },
+    async sendMessage(body) {
+      const session = currentSession();
+      if (!session) throw new Error("Sign in first.");
+      const text = body.trim();
+      if (!text) throw new Error("Type something first.");
+      if (text.length > 1000) throw new Error("Keep it under 1,000 characters.");
+      const db = read();
+      db.messages.push({ id: crypto.randomUUID?.() ?? String(Date.now()), userId: session.userId, body: text, deleted: false, createdAt: new Date().toISOString() });
+      write(db);
+    },
+    async deleteMessage(id) {
+      const session = currentSession();
+      const db = read();
+      const admin = db.players.find((p) => p.id === session?.userId)?.isAdmin;
+      const m = db.messages.find((x) => x.id === id && !x.deleted && (x.userId === session?.userId || admin));
+      if (!m) throw new Error("That message is gone.");
+      m.deleted = true;
+      m.body = "·";
+      db.reactions = db.reactions.filter((r) => r.messageId !== id);
+      write(db);
+    },
+    async toggleReaction(messageId, emoji) {
+      const session = currentSession();
+      if (!session) throw new Error("Sign in first.");
+      const db = read();
+      if (!db.messages.some((m) => m.id === messageId && !m.deleted)) throw new Error("That message is gone.");
+      const mine = (r: MessageReaction) => r.messageId === messageId && r.userId === session.userId && r.emoji === emoji;
+      if (db.reactions.some(mine)) db.reactions = db.reactions.filter((r) => !mine(r));
+      else db.reactions.push({ messageId, userId: session.userId, emoji });
       write(db);
     },
     async startProgram({ name, strict, lengthDays, tasks, startTomorrow }) {
