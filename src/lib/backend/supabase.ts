@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_SETTINGS, SUPABASE_ANON_KEY, SUPABASE_URL } from "../config";
-import type { AppData, Challenge, ChallengeLog, Program, ProgramDay, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
+import type { AppData, Challenge, ChallengeLog, ChatMessage, MessageReaction, Program, ProgramDay, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
 import { loginEmail } from "../login-name";
 import type { Backend, GymInput, Session } from "./types";
 
@@ -123,6 +123,21 @@ const toProgram = (r: Row): Program => ({
 
 const toProgramDay = (r: Row): ProgramDay => ({ programId: r.program_id, day: r.day, done: r.done ?? [] });
 
+const toMessage = (r: Row): ChatMessage => ({ id: r.id, userId: r.user_id, body: r.body, deleted: r.deleted, createdAt: r.created_at });
+const toReaction = (r: Row): MessageReaction => ({ messageId: r.message_id, userId: r.user_id, emoji: r.emoji });
+
+const CHAT_ERRORS: Record<string, string> = {
+  empty: "Type something first.",
+  too_long: "Keep it under 1,000 characters.",
+  slow_down: "Easy. Too many messages too fast.",
+  not_found: "That message is gone.",
+  bad_emoji: "That reaction isn't available.",
+  not_authenticated: "Sign in first.",
+};
+
+/** Chat history: the latest 300 messages is plenty for a club chat. */
+const CHAT_HISTORY = 300;
+
 const PROGRAM_ERRORS: Record<string, string> = {
   not_found: "That run isn't active anymore.",
   locked: "That day is locked. You can only tick today or yesterday.",
@@ -174,6 +189,18 @@ export function createSupabaseBackend(): Backend {
     if (error) throw new Error(error.message);
     const r = data as Row;
     if (!r?.ok) throw new Error(GYM_ERRORS[r?.code] ?? "Couldn't update the gym.");
+    return r;
+  }
+
+  async function chatRpc(fn: string, args: Record<string, unknown>): Promise<Row> {
+    const { data, error } = await sb.rpc(fn, args);
+    if (error) {
+      if (/could not find the function/i.test(error.message))
+        throw new Error("Chat isn't set up in the database yet. Run supabase/migrations/006_club_chat.sql.");
+      throw new Error(error.message);
+    }
+    const r = data as Row;
+    if (!r?.ok) throw new Error(CHAT_ERRORS[r?.code] ?? "Couldn't send that.");
     return r;
   }
 
@@ -250,7 +277,7 @@ export function createSupabaseBackend(): Backend {
     },
 
     async load(): Promise<AppData> {
-      const [players, checkIns, settings, results, punishments, gyms, challenges, challengeLogs, programs, programDays] = await Promise.all([
+      const [players, checkIns, settings, results, punishments, gyms, challenges, challengeLogs, programs, programDays, messages, reactions] = await Promise.all([
         selectAll(sb, "users", "*", "created_at"),
         selectAll(sb, "check_ins", "*", "checked_in_at"),
         sb.from("settings").select("*").eq("id", 1).maybeSingle(),
@@ -264,6 +291,14 @@ export function createSupabaseBackend(): Backend {
         // Tolerate a database that hasn't had the programs migration yet.
         selectAll(sb, "programs", "*", "created_at").catch(() => []),
         selectAll(sb, "program_days", "*", "day").catch(() => []),
+        // Tolerate a database that hasn't had the chat migration yet.
+        sb
+          .from("messages")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(CHAT_HISTORY)
+          .then(({ data, error }) => (error ? [] : ((data as Row[]) ?? []).reverse())),
+        selectAll(sb, "message_reactions", "*", "created_at").catch(() => []),
       ]);
       if (settings.error) throw settings.error;
       return {
@@ -275,6 +310,8 @@ export function createSupabaseBackend(): Backend {
         challengeLogs: challengeLogs.map(toChallengeLog),
         programs: programs.map(toProgram),
         programDays: programDays.map(toProgramDay),
+        messages: messages.map(toMessage),
+        reactions: reactions.map(toReaction),
         punishments: punishments.map(
           (r): Punishment => ({
             weekStart: r.weeks.start_date,
@@ -353,6 +390,18 @@ export function createSupabaseBackend(): Backend {
       await challengeRpc("save_challenge", { p_id: id ?? null, p_name: name, p_emoji: emoji, p_target: dailyTarget, p_unit: unit });
     },
 
+    async sendMessage(body) {
+      await chatRpc("send_message", { p_body: body });
+    },
+
+    async deleteMessage(id) {
+      await chatRpc("delete_message", { p_message: id });
+    },
+
+    async toggleReaction(messageId, emoji) {
+      await chatRpc("toggle_reaction", { p_message: messageId, p_emoji: emoji });
+    },
+
     async startProgram({ name, strict, lengthDays, tasks, startTomorrow }) {
       await programRpc("start_program", { p_name: name, p_strict: strict, p_length: lengthDays, p_tasks: tasks, p_start_tomorrow: startTomorrow });
     },
@@ -420,6 +469,8 @@ export function createSupabaseBackend(): Backend {
         .on("postgres_changes", { event: "*", schema: "public", table: "challenges" }, () => cb())
         .on("postgres_changes", { event: "*", schema: "public", table: "programs" }, () => cb())
         .on("postgres_changes", { event: "*", schema: "public", table: "program_days" }, () => cb())
+        .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => cb())
+        .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, () => cb())
         .subscribe();
       return () => {
         sb.removeChannel(channel);

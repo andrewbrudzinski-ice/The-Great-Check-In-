@@ -46,3 +46,22 @@ export function getCurrentFix(): Promise<Fix> {
     );
   });
 }
+
+/**
+ * A "lat, lng" pair as copied from Google/Apple Maps, e.g. "40.7411, -73.9897"
+ * or "40.7411 -73.9897". Null if the text isn't a valid pair.
+ */
+export function parseCoordPair(text: string): { lat: number; lng: number } | null {
+  const m = text.trim().match(/^\(?\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*\)?$/);
+  if (!m) return null;
+  const lat = Number(m[1]);
+  const lng = Number(m[2]);
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+}
+
+/** Flip the sign of a typed coordinate ("73.98" ⇄ "-73.98"), for keypads with no minus key. */
+export function flipSign(value: string): string {
+  const v = value.trim();
+  if (!v) return "-";
+  return v.startsWith("-") ? v.slice(1) : `-${v}`;
+}

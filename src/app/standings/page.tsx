@@ -25,7 +25,15 @@ export default function StandingsPage() {
 
   return (
     <div>
-      <PageTitle eyebrow={`Week of ${weekRangeLabel(game.weekStart)}`} title="Standings" />
+      <PageTitle
+        eyebrow={`Week of ${weekRangeLabel(game.weekStart)}`}
+        title="Standings"
+        right={
+          <Link href="/history" className="rounded-full bg-surface-2 px-3.5 py-2 text-xs font-semibold text-ink-2 hover:text-ink">
+            History →
+          </Link>
+        }
+      />
 
       {/* Leaderboard */}
       <SectionTitle>Check-ins this week</SectionTitle>

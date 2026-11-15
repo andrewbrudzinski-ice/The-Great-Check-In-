@@ -7,7 +7,7 @@ import { useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { CheckIcon, ChevronLeft, CrosshairIcon, PinIcon } from "@/components/Icons";
 import { PageTitle, SectionTitle, Sheet } from "@/components/ui";
-import { getCurrentFix } from "@/lib/geo";
+import { flipSign, getCurrentFix, parseCoordPair } from "@/lib/geo";
 import { activeGyms } from "@/lib/gyms";
 import { useGame } from "@/lib/store";
 import type { Gym } from "@/lib/types";
@@ -188,6 +188,11 @@ function GymForm({ gym, onDone }: { gym: Gym | null; onDone: () => void }) {
   const coordsOk = lat.trim() !== "" && lng.trim() !== "" && !isNaN(latN) && !isNaN(lngN) && Math.abs(latN) <= 90 && Math.abs(lngN) <= 180;
   const needsApproval = !gym && !me?.isAdmin;
 
+  function setPair({ lat, lng }: { lat: number; lng: number }) {
+    setLat(String(lat));
+    setLng(String(lng));
+  }
+
   async function locate() {
     setLocating(true);
     setError(null);
@@ -231,9 +236,12 @@ function GymForm({ gym, onDone }: { gym: Gym | null; onDone: () => void }) {
           {locating ? "Locating…" : "Use my location (stand inside the gym)"}
         </button>
         <div className="grid grid-cols-2 gap-2">
-          <input className={`${field} tabular text-sm`} inputMode="decimal" placeholder="Latitude" value={lat} onChange={(e) => setLat(e.target.value)} aria-label="Latitude" />
-          <input className={`${field} tabular text-sm`} inputMode="decimal" placeholder="Longitude" value={lng} onChange={(e) => setLng(e.target.value)} aria-label="Longitude" />
+          <CoordInput label="Latitude" placeholder="40.7411" value={lat} onChange={setLat} onPair={setPair} />
+          <CoordInput label="Longitude" placeholder="-73.9897" value={lng} onChange={setLng} onPair={setPair} />
         </div>
+        <p className="-mt-1 text-[11px] text-muted">
+          Tip: copy a pin from Google Maps (e.g. 40.7411, -73.9897) and paste it into either box. Use <b className="text-ink-2">±</b> for negatives.
+        </p>
         <label className="block">
           <span className="mb-1.5 flex justify-between text-xs font-semibold text-ink-2">
             Check-in radius <span className="font-normal text-muted">{radius} m</span>
@@ -276,6 +284,56 @@ function GymForm({ gym, onDone }: { gym: Gym | null; onDone: () => void }) {
           {busy ? "Saving…" : gym ? "Save changes" : needsApproval ? "Submit for approval" : "Add gym"}
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * A coordinate box. iPhone's decimal keypad has no minus key, so there's a ±
+ * button, and pasting a "lat, lng" pair from a maps app fills both boxes.
+ */
+function CoordInput({
+  label,
+  placeholder,
+  value,
+  onChange,
+  onPair,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  onPair: (p: { lat: number; lng: number }) => void;
+}) {
+  return (
+    <div className="flex items-stretch overflow-hidden rounded-xl border border-line bg-surface focus-within:border-volt/60">
+      <input
+        className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm text-ink tabular outline-none placeholder:text-muted/60"
+        inputMode="decimal"
+        placeholder={placeholder}
+        value={value}
+        aria-label={label}
+        onChange={(e) => {
+          const pair = parseCoordPair(e.target.value);
+          if (pair) onPair(pair);
+          else onChange(e.target.value.replace(/[^0-9.\-]/g, ""));
+        }}
+        onPaste={(e) => {
+          const pair = parseCoordPair(e.clipboardData.getData("text"));
+          if (pair) {
+            e.preventDefault();
+            onPair(pair);
+          }
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => onChange(flipSign(value))}
+        className="border-l border-line px-3 font-display text-base font-black text-ink-2 hover:text-ink"
+        aria-label={`Make ${label.toLowerCase()} ${value.trim().startsWith("-") ? "positive" : "negative"}`}
+      >
+        ±
+      </button>
     </div>
   );
 }

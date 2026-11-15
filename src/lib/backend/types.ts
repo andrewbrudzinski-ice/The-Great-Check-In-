@@ -45,6 +45,11 @@ export interface Backend {
   toggleProgramTask(programId: string, day: string, taskId: string, done: boolean): Promise<void>;
   /** Finish, quit, or record a failed run before restarting. */
   endProgram(programId: string, status: "completed" | "failed" | "quit"): Promise<void>;
+  /** Club chat. */
+  sendMessage(body: string): Promise<void>;
+  /** Your own message (the admin can delete any). */
+  deleteMessage(id: string): Promise<void>;
+  toggleReaction(messageId: string, emoji: string): Promise<void>;
   /** Mark a week's group punishment done (or back to owed). */
   setPunishmentDone(weekStart: string, done: boolean): Promise<void>;
   updatePlayer(id: string, patch: Partial<Pick<Player, "name" | "avatar" | "color">>): Promise<void>;
