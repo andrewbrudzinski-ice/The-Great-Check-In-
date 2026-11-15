@@ -47,6 +47,10 @@ create table if not exists public.users (
 alter table public.users add column if not exists weekly_requirement int
   check (weekly_requirement between 1 and 14);
 
+-- Paused players (injury, travel…) stay in the club but don't count: their
+-- weeks are recorded as exempt and never trigger the group punishment.
+alter table public.users add column if not exists paused boolean not null default false;
+
 -- ----------------------------------------------------------------------------
 -- Settings (single row)
 -- ----------------------------------------------------------------------------
@@ -137,6 +141,8 @@ create table if not exists public.weekly_results (
   created_at     timestamptz not null default now(),
   unique (week_id, user_id)
 );
+-- The player was paused when the week closed: shown, but never a culprit.
+alter table public.weekly_results add column if not exists exempt boolean not null default false;
 
 -- One group punishment per failed week: if anyone misses, everyone pays.
 create table if not exists public.punishments (
@@ -372,10 +378,11 @@ begin
       on conflict (start_date) do update set finalized_at = coalesce(public.weeks.finalized_at, now())
       returning id into wid;
 
-      insert into public.weekly_results (week_id, user_id, check_in_count, requirement, completed, punishment)
+      insert into public.weekly_results (week_id, user_id, check_in_count, requirement, completed, punishment, exempt)
       select wid, u.id, count(c.id), coalesce(u.weekly_requirement, s.weekly_requirement),
              count(c.id) >= coalesce(u.weekly_requirement, s.weekly_requirement),
-             case when count(c.id) < coalesce(u.weekly_requirement, s.weekly_requirement) then s.punishment end
+             case when count(c.id) < coalesce(u.weekly_requirement, s.weekly_requirement) and not u.paused then s.punishment end,
+             u.paused
       from public.users u
       left join public.check_ins c
         on c.user_id = u.id
@@ -383,13 +390,13 @@ begin
        and (c.checked_in_at at time zone s.timezone) <  wk + 7
       -- the week you join is a warm-up unless you joined on the Monday
       where (u.created_at at time zone s.timezone)::date <= wk
-      group by u.id, u.weekly_requirement
+      group by u.id, u.weekly_requirement, u.paused
       on conflict (week_id, user_id) do nothing;
 
-      -- Anyone short → the whole group owes the punishment.
+      -- Anyone short (and not paused) → the whole group owes the punishment.
       insert into public.punishments (week_id, punishment)
       select wid, s.punishment
-      where exists (select 1 from public.weekly_results r where r.week_id = wid and not r.completed)
+      where exists (select 1 from public.weekly_results r where r.week_id = wid and not r.completed and not r.exempt)
       on conflict (week_id) do nothing;
 
       n := n + 1;
@@ -510,6 +517,23 @@ revoke all on function public.set_player_requirement(uuid, int) from public, ano
 grant execute on function public.set_player_requirement(uuid, int) to authenticated;
 
 -- ----------------------------------------------------------------------------
+-- Admin: pause / unpause a player. Paused players can still check in, but the
+-- weeks they're paused for don't count (no punishment, streak frozen).
+-- ----------------------------------------------------------------------------
+create or replace function public.set_player_paused(p_user uuid, p_paused boolean)
+returns json language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then
+    return json_build_object('ok', false, 'code', 'forbidden');
+  end if;
+  update public.users set paused = coalesce(p_paused, false) where id = p_user;
+  if not found then return json_build_object('ok', false, 'code', 'not_found'); end if;
+  return json_build_object('ok', true);
+end $$;
+revoke all on function public.set_player_paused(uuid, boolean) from public, anon;
+grant execute on function public.set_player_paused(uuid, boolean) to authenticated;
+
+-- ----------------------------------------------------------------------------
 -- Admin manual check-ins (for when someone forgot to tap the button)
 -- ----------------------------------------------------------------------------
 
@@ -528,7 +552,7 @@ begin
   update public.weekly_results r
      set check_in_count = sub.n,
          completed      = sub.n >= r.requirement,
-         punishment     = case when sub.n >= r.requirement then null
+         punishment     = case when sub.n >= r.requirement or r.exempt then null
                                else coalesce(r.punishment, s.punishment) end
     from (select u.id as user_id, count(c.id) as n
             from public.users u
@@ -539,7 +563,7 @@ begin
            group by u.id) sub
    where r.week_id = wid and r.user_id = sub.user_id;
 
-  if exists (select 1 from public.weekly_results where week_id = wid and not completed) then
+  if exists (select 1 from public.weekly_results where week_id = wid and not completed and not exempt) then
     insert into public.punishments (week_id, punishment)
     values (wid, coalesce((select max(punishment) from public.weekly_results where week_id = wid), s.punishment))
     on conflict (week_id) do nothing;
@@ -662,7 +686,7 @@ select w.id, coalesce(max(r.punishment), (select punishment from public.settings
 from public.weeks w
 join public.weekly_results r on r.week_id = w.id
 group by w.id
-having bool_or(not r.completed)
+having bool_or(not r.completed and not r.exempt)
 on conflict (week_id) do nothing;
 
 -- ----------------------------------------------------------------------------

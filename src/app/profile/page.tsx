@@ -77,6 +77,7 @@ function Profile() {
         </Ring>
         <div className="min-w-0">
           <h1 className="font-display truncate text-4xl leading-none font-black">{player.name}</h1>
+          {player.paused && <p className="mt-1 text-[11px] font-bold tracking-wider text-muted">⏸ PAUSED · WEEKS DON&apos;T COUNT</p>}
           <p className="font-display tabular mt-2 text-xl font-extrabold">
             {pw.count}
             <span className="text-muted">/{pw.required}</span> <span className="text-sm font-semibold text-muted">this week</span>

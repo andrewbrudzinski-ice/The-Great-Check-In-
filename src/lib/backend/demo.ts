@@ -10,7 +10,7 @@ import type { AppData, Challenge, ChallengeLog, ChatMessage, MessageReaction, Pr
 import { addDays, localDate, midnightIn, weekKey, weekStartOf } from "../week";
 import type { Backend, GymInput, Session } from "./types";
 
-const KEY = "tgci-demo-v10";
+const KEY = "tgci-demo-v11";
 const SESSION_KEY = "tgci-demo-session";
 
 type DemoDB = AppData;
@@ -45,9 +45,9 @@ function seed(): DemoDB {
   const created = midnightIn(firstWeek, tz).toISOString();
 
   const players: Player[] = [
-    { id: "p-andrew", name: "Andrew", avatar: "🦍", color: PLAYER_COLORS[0], isAdmin: true, createdAt: created, weeklyRequirement: null },
-    { id: "p-mike", name: "Mike", avatar: "🦈", color: PLAYER_COLORS[1], isAdmin: false, createdAt: created, weeklyRequirement: null },
-    { id: "p-john", name: "John", avatar: "🐻", color: PLAYER_COLORS[2], isAdmin: false, createdAt: created, weeklyRequirement: null },
+    { id: "p-andrew", name: "Andrew", avatar: "🦍", color: PLAYER_COLORS[0], isAdmin: true, createdAt: created, weeklyRequirement: null, paused: false },
+    { id: "p-mike", name: "Mike", avatar: "🦈", color: PLAYER_COLORS[1], isAdmin: false, createdAt: created, weeklyRequirement: null, paused: false },
+    { id: "p-john", name: "John", avatar: "🐻", color: PLAYER_COLORS[2], isAdmin: false, createdAt: created, weeklyRequirement: null, paused: false },
   ];
   const gym = (id: string, name: string, latitude: number, longitude: number, radiusM: number, createdBy: string, status: Gym["status"] = "approved"): Gym => ({
     id, name, latitude, longitude, radiusM, status, createdBy,
@@ -213,13 +213,14 @@ function freeze(db: DemoDB, now: Date) {
         count,
         requirement,
         completed,
-        punishment: completed ? null : db.settings.punishment,
+        punishment: completed || p.paused ? null : db.settings.punishment,
+        exempt: !!p.paused,
       };
       db.results.push(res);
       changed = true;
     }
-    // Anyone short → the whole group owes the punishment.
-    if (db.results.some((r) => r.weekStart === wk && !r.completed)) {
+    // Anyone short (and not paused) → the whole group owes the punishment.
+    if (db.results.some((r) => r.weekStart === wk && !r.completed && !r.exempt)) {
       const p: Punishment = { weekStart: wk, text: db.settings.punishment, status: "owed", completedAt: null, completedBy: null };
       db.punishments.push(p);
     }
@@ -235,9 +236,9 @@ function refreeze(db: DemoDB, wk: string) {
   for (const r of rows) {
     r.count = db.checkIns.filter((c) => c.userId === r.userId && weekKey(c.checkedInAt, tz) === wk).length;
     r.completed = r.count >= r.requirement;
-    r.punishment = r.completed ? null : (r.punishment ?? db.settings.punishment);
+    r.punishment = r.completed || r.exempt ? null : (r.punishment ?? db.settings.punishment);
   }
-  const failed = rows.some((r) => !r.completed);
+  const failed = rows.some((r) => !r.completed && !r.exempt);
   const debt = db.punishments.find((p) => p.weekStart === wk);
   if (failed && !debt) {
     db.punishments.push({ weekStart: wk, text: db.settings.punishment, status: "owed", completedAt: null, completedBy: null });
@@ -404,6 +405,15 @@ export function createDemoBackend(): Backend {
       const admin = db.players.find((p) => p.id === session.userId)?.isAdmin;
       if (!admin && g.createdBy !== session.userId) throw new Error("Only the admin or whoever added it can remove a gym.");
       g.archived = true;
+      write(db);
+    },
+    async setPlayerPaused(id, paused) {
+      const session = currentSession();
+      const db = read();
+      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin) throw new Error("Only the admin can pause a player.");
+      const p = db.players.find((x) => x.id === id);
+      if (!p) throw new Error("That player doesn't exist.");
+      p.paused = paused;
       write(db);
     },
     async setPlayerRequirement(id, requirement) {

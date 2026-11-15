@@ -111,6 +111,16 @@ The admin can give one player a different weekly goal (e.g. 3 instead of the clu
 
 The **Chat** tab is a single group chat with live messages. Tap a message to react (👍 🔥 😂 💀 💪 ❤️) or delete your own; the admin can delete anyone's. Unread messages show as a badge on the tab, tracked per device. History moved to a link on Standings to make room in the tab bar. Writes go through `send_message` (trimmed, 1–1000 chars, max 10 per 30 s), `delete_message` and `toggle_reaction`. Existing installs: run `supabase/migrations/006_club_chat.sql` once.
 
+### Pausing a player
+
+Injured, travelling, taking a break? The admin can **pause** a player under **Settings → Players → Edit**. Pausing doesn't remove them.
+
+- A paused player stays on the board (dimmed, ⏸ PAUSED) and can still check in.
+- Their weeks are recorded as **exempt**: missing the goal never triggers the group punishment, they're never marked DANGER, and their streak is frozen rather than broken.
+- Unpause them to bring them back from the current week. A week's exempt status is taken from whether they're paused when that week closes.
+
+Set through `set_player_paused()` (admin only). Existing installs: run `supabase/migrations/007_pause_players.sql` once.
+
 ### Admin manual check-ins
 
 Someone forgot to tap the button? The admin can add a check-in for them under **Settings → Check someone in**: pick the player, the gym, the time (up to 14 days back) and an optional note. Manual check-ins run through `admin_check_in()`. It is admin-only, keeps the same cooldown so a visit can't be counted twice, and carries no GPS. They're labelled "✍️ added by …" everywhere, so the group can see them. If the time falls in an already-finished week, that week is re-counted, and an owed punishment is cleared if the miss is fixed. Manual check-ins can be removed again. GPS check-ins can't be.

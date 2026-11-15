@@ -14,6 +14,7 @@ const toPlayer = (r: Row): Player => ({
   isAdmin: r.is_admin,
   createdAt: r.created_at,
   weeklyRequirement: r.weekly_requirement ?? null,
+  paused: !!r.paused,
 });
 
 const toCheckIn = (r: Row): CheckIn => ({
@@ -329,6 +330,7 @@ export function createSupabaseBackend(): Backend {
             requirement: r.requirement,
             completed: r.completed,
             punishment: r.punishment,
+            exempt: !!r.exempt,
           }),
         ),
       };
@@ -420,6 +422,16 @@ export function createSupabaseBackend(): Backend {
 
     async archiveGym(id) {
       await gymRpc("archive_gym", { p_gym: id });
+    },
+
+    async setPlayerPaused(id, paused) {
+      const { data, error } = await sb.rpc("set_player_paused", { p_user: id, p_paused: paused });
+      if (error) {
+        if (/could not find the function/i.test(error.message))
+          throw new Error("Pausing isn't set up in the database yet. Run supabase/migrations/007_pause_players.sql.");
+        throw new Error(error.message);
+      }
+      if (!(data as Row)?.ok) throw new Error("Only the admin can pause a player.");
     },
 
     async setPlayerRequirement(id, requirement) {

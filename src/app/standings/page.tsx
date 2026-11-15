@@ -17,7 +17,7 @@ export default function StandingsPage() {
   const { data, game, now, me } = useGame();
   const s = data.settings;
   const ctx = { weekStart: game.weekStart, dayIndex: game.dayIndex, daysLeft: game.daysLeft };
-  const short = game.standings.filter((p) => !p.completed && !p.warmup);
+  const short = game.standings.filter((p) => !p.completed && !p.warmup && !p.paused);
 
   const streakBoard = [...game.standings].sort(
     (a, b) => (game.stats[b.player.id]?.currentStreak ?? 0) - (game.stats[a.player.id]?.currentStreak ?? 0),
@@ -89,6 +89,7 @@ export default function StandingsPage() {
         ) : (
           <ul className="space-y-4">
             {[...game.standings]
+              .filter((pw) => !pw.paused)
               .sort((a, b) => b.remaining - a.remaining)
               .map((pw) => {
                 const meta = STATUS_META[pw.status];

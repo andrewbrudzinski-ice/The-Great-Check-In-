@@ -21,7 +21,7 @@ export function Board() {
             pw={pw}
             isMe={pw.player.id === me?.id}
             streak={game.stats[pw.player.id]?.currentStreak ?? 0}
-            text={playerLine(pw, ctx)}
+            text={pw.paused ? "On pause. This week doesn't count." : playerLine(pw, ctx)}
           />
         ))}
       </ol>
@@ -36,7 +36,9 @@ function BoardRow({ pw, isMe, streak, text }: { pw: PlayerWeek; isMe: boolean; s
       layout
       transition={{ type: "spring", stiffness: 400, damping: 34 }}
       className={`relative overflow-hidden rounded-2xl border px-3.5 pt-3 pb-3.5 ${
-        danger
+        pw.paused
+          ? "border-dashed border-line-strong bg-transparent opacity-60"
+          : danger
           ? "border-problem/35 bg-[linear-gradient(100deg,rgba(251,65,102,0.13),rgba(251,65,102,0.02)_60%)]"
           : pw.completed
             ? "border-safe/20 bg-safe/[0.04]"
@@ -60,7 +62,11 @@ function BoardRow({ pw, isMe, streak, text }: { pw: PlayerWeek; isMe: boolean; s
             {pw.count}
             <span className="text-base text-muted">/{pw.required}</span>
           </span>
-          {pw.warmup ? (
+          {pw.paused ? (
+            <span className="rounded-full bg-surface-3 px-2 py-[3px] font-display text-[10px] font-bold tracking-[0.1em] text-muted" title="Paused by the admin. This week doesn't count">
+              ⏸ PAUSED
+            </span>
+          ) : pw.warmup ? (
             <span className="rounded-full bg-surface-3 px-2 py-[3px] font-display text-[10px] font-bold tracking-[0.1em] text-muted" title="Joined mid-week — this week doesn't count">
               WARM-UP
             </span>
