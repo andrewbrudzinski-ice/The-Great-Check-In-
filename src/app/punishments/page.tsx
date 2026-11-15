@@ -20,7 +20,7 @@ export default function PunishmentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [celebrate, setCelebrate] = useState(0);
 
-  const short = game.standings.filter((p) => !p.completed && !p.warmup);
+  const short = game.standings.filter((p) => !p.completed && !p.warmup && !p.paused);
   const clean = game.history.filter((w) => !w.debt).length;
   const playerName = (id: string | null) => data.players.find((p) => p.id === id)?.name ?? "someone";
 

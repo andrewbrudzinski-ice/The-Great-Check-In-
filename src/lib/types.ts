@@ -8,6 +8,8 @@ export type Player = {
   createdAt: string;
   /** Personal weekly check-in goal; null = the club's default. */
   weeklyRequirement: number | null;
+  /** Paused: still in the club, but their weeks don't count. */
+  paused: boolean;
 };
 
 export type CheckIn = {
@@ -118,6 +120,8 @@ export type WeekResult = {
   requirement: number;
   completed: boolean;
   punishment: string | null;
+  /** The player was paused when this week closed. */
+  exempt: boolean;
 };
 
 /** The group punishment owed for a week where anyone missed the goal. */

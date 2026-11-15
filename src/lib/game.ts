@@ -23,6 +23,8 @@ export type PlayerWeek = {
   inDanger: boolean;
   /** Joined mid-week: shown on the board, but this week doesn't count. */
   warmup: boolean;
+  /** Paused by the admin: shown, but this week doesn't count. */
+  paused: boolean;
 };
 
 export type WeekRow = {
@@ -31,6 +33,8 @@ export type WeekRow = {
   requirement: number;
   completed: boolean;
   punishment: string | null;
+  /** Paused that week: never a culprit, doesn't touch streaks. */
+  exempt: boolean;
 };
 
 export type WeekSummary = {
@@ -144,6 +148,7 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
       needsDoubles: remaining > daysLeft,
       inDanger: false,
       warmup: localDate(player.createdAt, tz) > weekStart,
+      paused: !!player.paused,
       // tie-breaker: whoever reached their current count first
       _reachedAt: last?.checkedInAt ?? "9999",
     };
@@ -151,6 +156,7 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
 
   rows.sort(
     (a, b) =>
+      Number(a.paused) - Number(b.paused) || // paused players sit at the bottom
       Number(b.completed) - Number(a.completed) ||
       (a.completed && b.completed ? a.completedAt!.localeCompare(b.completedAt!) : 0) ||
       b.count - a.count ||
@@ -160,7 +166,7 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
   const standings: PlayerWeek[] = rows.map(({ _reachedAt, ...r }, i) => ({ ...r, rank: i + 1 }));
   // Danger = whoever needs the most, but only if someone is actually doing
   // better than them (a three-way tie means nobody is singled out).
-  const competing = standings.filter((s) => !s.warmup);
+  const competing = standings.filter((s) => !s.warmup && !s.paused);
   const short = competing.filter((s) => !s.completed);
   if (short.length) {
     const most = Math.max(...short.map((s) => s.remaining));
@@ -194,7 +200,7 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
           .map((r) => {
             const player = players.find((p) => p.id === r.userId);
             return player
-              ? { player, count: r.count, requirement: r.requirement, completed: r.completed, punishment: r.punishment }
+              ? { player, count: r.count, requirement: r.requirement, completed: r.completed, punishment: r.punishment, exempt: !!r.exempt }
               : null;
           })
           .filter((r): r is WeekRow => r !== null);
@@ -207,12 +213,13 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
             const count = list.filter((c) => c.userId === player.id).length;
             const req = reqFor(player);
             const completed = count >= req;
-            return { player, count, requirement: req, completed, punishment: completed ? null : settings.punishment };
+            const exempt = !!player.paused;
+            return { player, count, requirement: req, completed, punishment: completed || exempt ? null : settings.punishment, exempt };
           });
       }
       if (!weekRows.length) continue;
-      weekRows.sort((a, b) => Number(b.completed) - Number(a.completed) || b.count - a.count);
-      const culprits = weekRows.filter((r) => !r.completed);
+      weekRows.sort((a, b) => Number(a.exempt) - Number(b.exempt) || Number(b.completed) - Number(a.completed) || b.count - a.count);
+      const culprits = weekRows.filter((r) => !r.completed && !r.exempt);
       const text = culprits[0]?.punishment ?? frozen?.find((r) => r.punishment)?.punishment ?? settings.punishment;
       // If anyone missed, the group owes it. Weeks the server hasn't rolled
       // over yet get a provisional "owed" record.
@@ -244,6 +251,7 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
     for (const w of chronological) {
       const row = w.rows.find((r) => r.player.id === p.id);
       if (!row) continue; // hadn't joined yet
+      if (row.exempt) continue; // paused: streak frozen, not broken
       timeline.push({ weekStart: w.weekStart, count: row.count, requirement: row.requirement, completed: row.completed });
       if (row.completed) {
         completed++;
@@ -255,7 +263,7 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
       }
     }
     const cur = standings.find((s) => s.player.id === p.id)!;
-    const includes = cur.completed && !cur.warmup;
+    const includes = cur.completed && !cur.warmup && !cur.paused;
     if (includes) {
       streak++;
       best = Math.max(best, streak);

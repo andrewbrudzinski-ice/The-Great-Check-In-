@@ -25,7 +25,7 @@ test("status thresholds", () => {
 });
 
 const players: Player[] = ["A", "B", "C"].map((n, i) => ({
-  id: n, name: n, avatar: "💪", color: "#fff", isAdmin: i === 0, createdAt: "2026-09-14T12:00:00Z", weeklyRequirement: null,
+  id: n, name: n, avatar: "💪", color: "#fff", isAdmin: i === 0, createdAt: "2026-09-14T12:00:00Z", weeklyRequirement: null, paused: false,
 }));
 
 function ci(userId: string, date: string, hour = 12): CheckIn {
@@ -83,7 +83,7 @@ test("frozen results win over live recompute", () => {
   const d = data([ci("A", "2026-09-28")]);
   d.results = players.map((p) => ({
     weekStart: "2026-09-28", userId: p.id, count: p.id === "A" ? 1 : 5, requirement: 5,
-    completed: p.id !== "A", punishment: p.id === "A" ? "Old punishment" : null,
+    completed: p.id !== "A", punishment: p.id === "A" ? "Old punishment" : null, exempt: false,
   }));
   const g = computeGame(d, new Date("2026-10-06T15:00:00Z"));
   const w = g.history.find((h) => h.weekStart === "2026-09-28")!;
@@ -110,7 +110,7 @@ test("nobody is singled out in a full tie", () => {
 
 test("joining mid-week is a warm-up", () => {
   const d = data([ci("A", "2026-10-05")]);
-  d.players = [...players, { id: "D", name: "D", avatar: "x", color: "#fff", isAdmin: false, createdAt: "2026-09-24T12:00:00Z", weeklyRequirement: null }];
+  d.players = [...players, { id: "D", name: "D", avatar: "x", color: "#fff", isAdmin: false, createdAt: "2026-09-24T12:00:00Z", weeklyRequirement: null, paused: false }];
   const g = computeGame(d, new Date("2026-10-06T15:00:00Z"));
   const w21 = g.history.find((h) => h.weekStart === "2026-09-21")!;
   assert.equal(w21.rows.some((r) => r.player.id === "D"), false); // joined Thursday
@@ -159,4 +159,32 @@ test("per-player weekly goals", () => {
   const last = g.history.find((w) => w.weekStart === "2026-09-28")!;
   assert.deepEqual(last.culprits.map((r) => r.player.id), ["B"]);
   assert.equal(last.rows.find((r) => r.player.id === "C")!.requirement, 3);
+});
+
+test("paused players don't count: no danger, no culprit, streak frozen", () => {
+  const ins: CheckIn[] = [];
+  // Sep 28 (not closed yet, C paused): A and B do 5, C does 0. This week: C paused with 0.
+  for (const u of ["A", "B"]) for (let d = 0; d < 5; d++) ins.push(ci(u, addDays("2026-09-28", d)));
+  ins.push(ci("A", "2026-10-05"), ci("B", "2026-10-05"));
+  const d = data(ins);
+  d.players = players.map((p) => (p.id === "C" ? { ...p, paused: true } : p));
+  // Sep 14 and Sep 21 were closed earlier with everyone at 5 (C not paused then).
+  d.results = ["2026-09-14", "2026-09-21"].flatMap((wk) =>
+    ["A", "B", "C"].map((id) => ({ weekStart: wk, userId: id, count: 5, requirement: 5, completed: true, punishment: null, exempt: false })),
+  );
+  const g = computeGame(d, new Date("2026-10-06T15:00:00Z"));
+  const c = g.standings.find((s) => s.player.id === "C")!;
+  assert.equal(c.paused, true);
+  assert.equal(c.inDanger, false);
+  assert.equal(g.standings.at(-1)!.player.id, "C"); // paused sits at the bottom
+  const sep28 = g.history.find((w) => w.weekStart === "2026-09-28")!;
+  assert.equal(sep28.culprits.length, 0); // C's 0 doesn't sink the group
+  assert.equal(sep28.debt, null);
+  assert.equal(g.stats.C.currentStreak, 2); // 2-week streak survives the paused week
+  assert.equal(g.stats.C.weeksFailed, 0);
+  // A frozen exempt row behaves the same once C is unpaused.
+  d.results.push(...["A", "B", "C"].map((id) => ({ weekStart: "2026-09-28", userId: id, count: id === "C" ? 0 : 5, requirement: 5, completed: id !== "C", punishment: null, exempt: id === "C" })));
+  const g2 = computeGame({ ...d, players }, new Date("2026-10-06T15:00:00Z"));
+  assert.equal(g2.history.find((w) => w.weekStart === "2026-09-28")!.culprits.length, 0);
+  assert.equal(g2.stats.C.currentStreak, 2);
 });

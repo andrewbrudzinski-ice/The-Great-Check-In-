@@ -151,7 +151,9 @@ export default function Home() {
       <section className="mt-6" aria-label="Check in">
         {mine && (
           <p className="mb-3 flex items-baseline justify-between gap-3 px-1">
-            <span className="text-[13px] text-ink-2">{playerLine(mine, ctx, true)}</span>
+            <span className="text-[13px] text-ink-2">
+              {mine.paused ? "You're paused. Check in if you like; it won't count against you." : playerLine(mine, ctx, true)}
+            </span>
             <span className="eyebrow shrink-0">
               You <span className="tabular text-ink">{mine.count}/{mine.required}</span>
             </span>

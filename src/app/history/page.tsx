@@ -66,13 +66,19 @@ export default function HistoryPage() {
                   {w.rows.map((r) => (
                     <li key={r.player.id} className="flex items-center gap-2.5 text-sm">
                       <Avatar player={r.player} size={24} />
-                      <span className={`flex-1 ${r.completed ? "" : "text-problem"}`}>{r.player.name}</span>
+                      <span className={`flex-1 ${r.completed || r.exempt ? "" : "text-problem"} ${r.exempt ? "text-muted" : ""}`}>{r.player.name}</span>
                       <span className="tabular font-semibold">
                         {r.count}/{r.requirement}
                       </span>
-                      <span className={`w-5 text-center ${r.completed ? "text-safe" : "text-problem"}`} aria-label={r.completed ? "completed" : "failed"}>
-                        {r.completed ? "✓" : "✕"}
-                      </span>
+                      {r.exempt && !r.completed ? (
+                        <span className="text-[10px] font-bold tracking-wider text-muted" aria-label="paused">
+                          ⏸ PAUSED
+                        </span>
+                      ) : (
+                        <span className={`w-5 text-center ${r.completed ? "text-safe" : "text-problem"}`} aria-label={r.completed ? "completed" : "failed"}>
+                          {r.completed ? "✓" : "✕"}
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
