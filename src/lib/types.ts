@@ -41,6 +41,11 @@ export type Settings = {
   cooldownHours: number;
   punishment: string;
   timezone: string;
+  /** One challenge a day for everyone (rotating), or every challenge every day. */
+  challengeRotation: boolean;
+  /** Rotation position: on this day it's at this index (re-pinned when the list changes). */
+  rotationAnchorDay: string;
+  rotationAnchorIndex: number;
 };
 
 export type Gym = {
@@ -67,6 +72,8 @@ export type Challenge = {
   archived: boolean;
   createdBy: string | null;
   createdAt: string;
+  /** Position in the daily rotation. */
+  sortOrder: number;
 };
 
 /** One logged set. `day` is the club-timezone date it counts for. */

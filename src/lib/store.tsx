@@ -38,6 +38,7 @@ type Ctx = {
   deleteChallengeLog: (id: string) => Promise<void>;
   saveChallenge: (input: ChallengeInput) => Promise<void>;
   archiveChallenge: (id: string) => Promise<void>;
+  setChallengeOrder: (ids: string[]) => Promise<void>;
   startProgram: (input: ProgramInput) => Promise<void>;
   sendMessage: (body: string) => Promise<void>;
   deleteMessage: (id: string) => Promise<void>;
@@ -200,6 +201,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteChallengeLog: write((id: string) => backend.deleteChallengeLog(id)),
       saveChallenge: write((i: ChallengeInput) => backend.saveChallenge(i)),
       archiveChallenge: write((id: string) => backend.archiveChallenge(id)),
+      setChallengeOrder: write((ids: string[]) => backend.setChallengeOrder(ids)),
       startProgram: write((i: ProgramInput) => backend.startProgram(i)),
       // Optimistic: your message shows instantly; the reload swaps in the real one.
       sendMessage: async (body: string) => {

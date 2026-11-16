@@ -38,7 +38,8 @@ function data(checkIns: CheckIn[]): AppData {
     players, checkIns, results: [], punishments: [], gyms: [], challenges: [], challengeLogs: [], programs: [], programDays: [], messages: [], reactions: [],
     settings: {
       appTitle: "", appSubtitle: "", checkInRadius: 150,
-      weeklyRequirement: 5, cooldownHours: 4, punishment: "Lunch", timezone: tz,
+      weeklyRequirement: 5, cooldownHours: 4, punishment: "Lunch", timezone: tz, challengeRotation: false,
+      rotationAnchorDay: "2024-01-01", rotationAnchorIndex: 0,
     },
   };
 }

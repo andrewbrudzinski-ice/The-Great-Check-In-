@@ -5,12 +5,13 @@
 import { DEFAULT_SETTINGS, PLAYER_COLORS } from "../config";
 import { distanceM } from "../geo";
 import { matchGym } from "../gyms";
+import { anchorOf, repinAnchor, rotationFor } from "../challenges";
 import { PRESETS } from "../programs";
 import type { AppData, Challenge, ChallengeLog, ChatMessage, MessageReaction, Program, ProgramDay, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
 import { addDays, localDate, midnightIn, weekKey, weekStartOf } from "../week";
 import type { Backend, GymInput, Session } from "./types";
 
-const KEY = "tgci-demo-v11";
+const KEY = "tgci-demo-v13";
 const SESSION_KEY = "tgci-demo-session";
 
 type DemoDB = AppData;
@@ -32,6 +33,13 @@ function browserTz() {
   } catch {
     return DEFAULT_SETTINGS.timezone;
   }
+}
+
+/** Keep today's rotating challenge in place after the list changes (like rotation_pin()). */
+function repin(db: DemoDB, before: Challenge[]) {
+  const a = repinAnchor(before, db.challenges, localDate(new Date(), db.settings.timezone), anchorOf(db.settings));
+  db.settings.rotationAnchorDay = a.day;
+  db.settings.rotationAnchorIndex = a.index;
 }
 
 function seed(): DemoDB {
@@ -114,23 +122,32 @@ function seed(): DemoDB {
   }
 
   checkIns.sort((a, b) => a.checkedInAt.localeCompare(b.checkedInAt));
-  // Daily pushups for the last two weeks: Andrew never misses, Mike mostly, John… tries.
-  const pushups: Challenge = {
-    id: "c-pushups", name: "Pushups", emoji: "💪", dailyTarget: 100, unit: "reps",
-    archived: false, createdBy: "p-andrew", createdAt: midnightIn(addDays(today, -14), tz).toISOString(),
-  };
+  // Rotating daily challenge for the last two weeks: Andrew never misses,
+  // Mike mostly, John… tries.
+  const challengeStart = midnightIn(addDays(today, -14), tz).toISOString();
+  const ch = (id: string, name: string, emoji: string, dailyTarget: number, unit: string, sortOrder: number): Challenge => ({
+    id, name, emoji, dailyTarget, unit, archived: false, createdBy: "p-andrew", createdAt: challengeStart, sortOrder,
+  });
+  const challenges: Challenge[] = [
+    ch("c-pushups", "Pushups", "💪", 100, "reps", 1),
+    ch("c-situps", "Sit-ups", "🤸", 100, "reps", 2),
+    ch("c-burpees", "Burpees", "🔥", 50, "reps", 3),
+    ch("c-abs", "Abs", "⏱️", 10, "min", 4),
+  ];
   const challengeLogs: ChallengeLog[] = [];
   const hitRate: Record<string, number> = { "p-andrew": 1, "p-mike": 0.8, "p-john": 0.45 };
   for (let back = 14; back >= 0; back--) {
     const day = addDays(today, -back);
+    const c = rotationFor(challenges, day)!;
     for (const p of players) {
       // today: still in progress for everyone
-      let total = back === 0 ? [50, 70, 20][players.indexOf(p)] : r() < hitRate[p.id] ? 100 + Math.floor(r() * 3) * 10 : 40 + Math.floor(r() * 5) * 10;
+      const frac = back === 0 ? [0.5, 0.7, 0.2][players.indexOf(p)] : r() < hitRate[p.id] ? 1 + Math.floor(r() * 3) / 10 : 0.4 + Math.floor(r() * 5) / 10;
+      let total = Math.round(c.dailyTarget * frac);
       let hour = 8;
       while (total > 0) {
-        const set = Math.min(total, [20, 25, 30, 50][Math.floor(r() * 4)]);
+        const set = Math.min(total, Math.max(1, Math.round(c.dailyTarget * [0.2, 0.25, 0.3, 0.5][Math.floor(r() * 4)])));
         const at = new Date(midnightIn(day, tz).getTime() + hour * 3600000);
-        if (at < now) challengeLogs.push({ id: uid(r), challengeId: pushups.id, userId: p.id, amount: set, target: 100, day, loggedAt: at.toISOString() });
+        if (at < now) challengeLogs.push({ id: uid(r), challengeId: c.id, userId: p.id, amount: set, target: c.dailyTarget, day, loggedAt: at.toISOString() });
         total -= set;
         hour += 2;
       }
@@ -181,7 +198,7 @@ function seed(): DemoDB {
     { messageId: "m-5", userId: "p-mike", emoji: "🔥" },
   ];
 
-  const db: DemoDB = { players, checkIns, results: [], punishments: [], gyms, challenges: [pushups], challengeLogs, programs, programDays, messages, reactions, settings };
+  const db: DemoDB = { players, checkIns, results: [], punishments: [], gyms, challenges, challengeLogs, programs, programDays, messages, reactions, settings };
   freeze(db, now);
   // Older debts were paid off; the most recent two are still owed.
   const payers = ["p-mike", "p-andrew", "p-john"];
@@ -475,6 +492,8 @@ export function createDemoBackend(): Backend {
       const c = db.challenges.find((x) => x.id === challengeId && !x.archived);
       if (!c) throw new Error("That challenge is gone.");
       if (!Number.isFinite(amount) || amount < 1 || amount > 100000) throw new Error("Enter a number above zero.");
+      if (db.settings.challengeRotation && rotationFor(db.challenges, localDate(new Date(), db.settings.timezone), anchorOf(db.settings))?.id !== c.id)
+        throw new Error("That's not today's challenge. Today's is up top.");
       db.challengeLogs.push({
         id: crypto.randomUUID?.() ?? String(Date.now()),
         challengeId,
@@ -504,6 +523,7 @@ export function createDemoBackend(): Backend {
         if (!c) throw new Error("That challenge is gone.");
         Object.assign(c, { name: name.trim(), emoji: emoji.trim() || c.emoji, dailyTarget, unit: unit.trim() || c.unit });
       } else {
+        const before = structuredClone(db.challenges);
         if (db.challenges.filter((c) => !c.archived).length >= 10) throw new Error("That's a lot of challenges. Retire one first.");
         db.challenges.push({
           id: crypto.randomUUID?.() ?? String(Date.now()),
@@ -512,9 +532,11 @@ export function createDemoBackend(): Backend {
           dailyTarget,
           unit: unit.trim() || "reps",
           archived: false,
+          sortOrder: Math.max(0, ...db.challenges.map((x) => x.sortOrder)) + 1,
           createdBy: session.userId,
           createdAt: new Date().toISOString(),
         });
+        repin(db, before);
       }
       write(db);
     },
@@ -596,11 +618,23 @@ export function createDemoBackend(): Backend {
       p.endedAt = new Date().toISOString();
       write(db);
     },
+    async setChallengeOrder(ids) {
+      const db = read();
+      const before = structuredClone(db.challenges);
+      ids.forEach((id, i) => {
+        const c = db.challenges.find((x) => x.id === id);
+        if (c) c.sortOrder = i + 1;
+      });
+      repin(db, before);
+      write(db);
+    },
     async archiveChallenge(id) {
       const db = read();
       const c = db.challenges.find((x) => x.id === id && !x.archived);
       if (!c) throw new Error("That challenge is gone.");
+      const before = structuredClone(db.challenges);
       c.archived = true;
+      repin(db, before);
       write(db);
     },
     async setPunishmentDone(weekStart, done) {

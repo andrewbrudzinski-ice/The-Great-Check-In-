@@ -43,6 +43,10 @@ const toSettings = (r: Row | null): Settings =>
         cooldownHours: Number(r.cooldown_hours),
         punishment: r.punishment,
         timezone: r.timezone,
+        // Older databases (before the rotation migration) do every challenge daily.
+        challengeRotation: r.challenge_rotation ?? false,
+        rotationAnchorDay: r.rotation_anchor_day ?? "2024-01-01",
+        rotationAnchorIndex: r.rotation_anchor_index ?? 0,
       }
     : DEFAULT_SETTINGS;
 
@@ -54,6 +58,9 @@ const SETTINGS_COLUMNS: Record<keyof Settings, string> = {
   cooldownHours: "cooldown_hours",
   punishment: "punishment",
   timezone: "timezone",
+  challengeRotation: "challenge_rotation",
+  rotationAnchorDay: "rotation_anchor_day",
+  rotationAnchorIndex: "rotation_anchor_index",
 };
 
 const toGym = (r: Row): Gym => ({
@@ -96,6 +103,7 @@ const toChallenge = (r: Row): Challenge => ({
   archived: r.archived,
   createdBy: r.created_by,
   createdAt: r.created_at,
+  sortOrder: r.sort_order ?? 0,
 });
 
 const toChallengeLog = (r: Row): ChallengeLog => ({
@@ -152,6 +160,7 @@ const PROGRAM_ERRORS: Record<string, string> = {
 
 const CHALLENGE_ERRORS: Record<string, string> = {
   not_found: "That challenge is gone (or that set is too old to undo).",
+  not_today: "That's not today's challenge. Today's is up top.",
   bad_amount: "Enter a number above zero.",
   too_many: "That's a lot of challenges. Retire one first.",
   not_authenticated: "Sign in first.",
@@ -418,6 +427,10 @@ export function createSupabaseBackend(): Backend {
 
     async archiveChallenge(id) {
       await challengeRpc("archive_challenge", { p_id: id });
+    },
+
+    async setChallengeOrder(ids) {
+      await challengeRpc("set_challenge_order", { p_ids: ids });
     },
 
     async archiveGym(id) {

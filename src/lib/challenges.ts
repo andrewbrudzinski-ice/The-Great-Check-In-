@@ -3,7 +3,115 @@
 import type { Challenge, ChallengeLog, Player } from "./types.ts";
 import { addDays, localDate } from "./week.ts";
 
-export type ChallengeDay = { day: string; total: number; target: number; done: boolean };
+export type ChallengeDay = {
+  day: string;
+  total: number;
+  target: number;
+  done: boolean;
+  /** Rotation mode: which challenge that day was (or would have been). */
+  challengeId?: string;
+};
+
+// ---- Rotation ---------------------------------------------------------------
+// One challenge a day for everyone, cycling through active challenges in
+// sort order. On anchor.day the rotation sits at anchor.index, then moves one
+// a day. Must match rotation_challenge_for() in the database.
+
+export type RotationAnchor = { day: string; index: number };
+export const DEFAULT_ANCHOR: RotationAnchor = { day: "2024-01-01", index: 0 };
+export const anchorOf = (s: { rotationAnchorDay: string; rotationAnchorIndex: number }): RotationAnchor => ({
+  day: s.rotationAnchorDay,
+  index: s.rotationAnchorIndex,
+});
+
+const utcDay = (day: string) => {
+  const [y, m, d] = day.split("-").map(Number);
+  return Date.UTC(y, m - 1, d);
+};
+
+/** Active challenges in rotation order. */
+export function sortedChallenges(challenges: Challenge[]): Challenge[] {
+  return challenges
+    .filter((c) => !c.archived)
+    .slice()
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+}
+
+/** The challenge on the rotation for a given day (YYYY-MM-DD). */
+export function rotationFor(challenges: Challenge[], day: string, anchor: RotationAnchor = DEFAULT_ANCHOR): Challenge | null {
+  const pool = sortedChallenges(challenges);
+  if (!pool.length) return null;
+  const n = anchor.index + Math.round((utcDay(day) - utcDay(anchor.day)) / 86400000);
+  return pool[((n % pool.length) + pool.length) % pool.length];
+}
+
+/**
+ * The anchor that keeps `today`'s challenge in place after the list changes
+ * (`before` → `after`). If today's was retired, whatever takes its slot runs today.
+ */
+export function repinAnchor(before: Challenge[], after: Challenge[], today: string, anchor: RotationAnchor): RotationAnchor {
+  const keep = rotationFor(before, today, anchor);
+  const oldPos = keep ? sortedChallenges(before).findIndex((c) => c.id === keep.id) : 0;
+  const newPos = keep ? sortedChallenges(after).findIndex((c) => c.id === keep.id) : -1;
+  return { day: today, index: newPos >= 0 ? newPos : Math.max(0, oldPos) };
+}
+
+/** The next `count` days of the rotation, starting with `from`. */
+export function rotationSchedule(challenges: Challenge[], from: string, count: number, anchor: RotationAnchor = DEFAULT_ANCHOR) {
+  return Array.from({ length: count }, (_, i) => {
+    const day = addDays(from, i);
+    return { day, challenge: rotationFor(challenges, day, anchor) };
+  }).filter((x): x is { day: string; challenge: Challenge } => !!x.challenge);
+}
+
+/**
+ * Did a player finish "the daily challenge" on a day? In rotation mode that's
+ * whichever challenge they logged (normally the day's one). Today is judged
+ * against the current target; past days against the target logged then.
+ */
+function dailyDays(challenges: Challenge[], logs: ChallengeLog[], userId: string, today: string) {
+  const byId = new Map(challenges.map((c) => [c.id, c]));
+  const byDay = new Map<string, Map<string, { total: number; target: number }>>();
+  for (const l of logs) {
+    if (l.userId !== userId) continue;
+    const day = byDay.get(l.day) ?? new Map();
+    const d = day.get(l.challengeId) ?? { total: 0, target: 0 };
+    d.total += l.amount;
+    d.target = Math.max(d.target, l.target);
+    day.set(l.challengeId, d);
+    byDay.set(l.day, day);
+  }
+  return (day: string, expected?: Challenge | null): ChallengeDay => {
+    const entries = [...(byDay.get(day)?.entries() ?? [])].map(([cid, d]) => {
+      const c = byId.get(cid);
+      const target = day === today && c && !c.archived ? c.dailyTarget : d.target || c?.dailyTarget || 1;
+      return { cid, total: d.total, target, done: d.total >= target };
+    });
+    const best = entries.find((e) => e.done) ?? entries.sort((a, b) => b.total / b.target - a.total / a.target)[0];
+    if (best) return { day, total: best.total, target: best.target, done: best.done, challengeId: best.cid };
+    return { day, total: 0, target: expected?.dailyTarget ?? 0, done: false, challengeId: expected?.id };
+  };
+}
+
+/** Current and best run of consecutive days with the daily challenge done. */
+export function dailyStreaks(challenges: Challenge[], logs: ChallengeLog[], userId: string, today: string) {
+  const info = dailyDays(challenges, logs, userId, today);
+  const days = [...new Set(logs.filter((l) => l.userId === userId).map((l) => l.day))].sort();
+  let current = 0;
+  for (let d = info(today).done ? today : addDays(today, -1); days.length && d >= days[0]; d = addDays(d, -1)) {
+    if (!info(d).done) break;
+    current++;
+  }
+  let best = 0;
+  let run = 0;
+  if (days.length) {
+    for (let d = days[0]; d <= today; d = addDays(d, 1)) {
+      run = info(d).done ? run + 1 : 0;
+      best = Math.max(best, run);
+    }
+  }
+  return { current, best, doneToday: info(today).done };
+}
 
 export type PlayerChallenge = {
   player: Player;
@@ -32,9 +140,10 @@ export function computeChallenges(
   players: Player[],
   today: string,
   tz: string,
+  opts: { rotation?: boolean; anchor?: RotationAnchor } = {},
 ): ChallengeState[] {
-  return challenges
-    .filter((c) => !c.archived)
+  const active = opts.rotation ? [rotationFor(challenges, today, opts.anchor)].filter((c): c is Challenge => !!c) : sortedChallenges(challenges);
+  return active
     .map((challenge) => {
       const mine = logs.filter((l) => l.challengeId === challenge.id);
       const startDay = localDate(challenge.createdAt, tz);
@@ -59,9 +168,21 @@ export function computeChallenges(
 
         const t = dayInfo(today);
         let streak = 0;
-        for (let d = t.done ? today : addDays(today, -1); d >= startDay; d = addDays(d, -1)) {
-          if (!dayInfo(d).done) break;
-          streak++;
+        let last7: ChallengeDay[];
+        if (opts.rotation) {
+          // Rotation: the streak and grid follow "the day's challenge", whatever it was.
+          streak = dailyStreaks(challenges, logs, player.id, today).current;
+          const daily = dailyDays(challenges, logs, player.id, today);
+          last7 = Array.from({ length: 7 }, (_, i) => {
+            const day = addDays(today, i - 6);
+            return daily(day, rotationFor(challenges, day, opts.anchor));
+          });
+        } else {
+          for (let d = t.done ? today : addDays(today, -1); d >= startDay; d = addDays(d, -1)) {
+            if (!dayInfo(d).done) break;
+            streak++;
+          }
+          last7 = Array.from({ length: 7 }, (_, i) => dayInfo(addDays(today, i - 6)));
         }
         return {
           player,
@@ -70,7 +191,7 @@ export function computeChallenges(
           done: t.done,
           remaining: Math.max(0, t.target - t.total),
           streak,
-          last7: Array.from({ length: 7 }, (_, i) => dayInfo(addDays(today, i - 6))),
+          last7,
           logsToday: (byDay.get(today)?.logs ?? []).slice().sort((a, b) => b.loggedAt.localeCompare(a.loggedAt)),
         };
       });
@@ -102,6 +223,8 @@ export type ChallengeLifetime = {
   currentStreak: number;
   bestStreak: number;
   doneToday: boolean;
+  /** Most done in a single day. */
+  bestDay: number;
 };
 
 /** One player's lifetime stats per challenge, for their profile. */
@@ -151,7 +274,8 @@ export function lifetimeStats(
         current++;
       }
 
-      return { challenge, total, daysCompleted, currentStreak: current, bestStreak: best, doneToday: done(today) };
+      const bestDay = Math.max(0, ...[...byDay.values()].map((d) => d.total));
+      return { challenge, total, daysCompleted, currentStreak: current, bestStreak: best, doneToday: done(today), bestDay };
     })
     // Active challenges, plus retired ones this player actually did.
     .filter((s) => !s.challenge.archived || s.total > 0);

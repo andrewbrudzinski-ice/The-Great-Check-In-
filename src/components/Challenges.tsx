@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
-import { computeChallenges, quickAmounts, type ChallengeState, type PlayerChallenge } from "@/lib/challenges";
+import { anchorOf, computeChallenges, quickAmounts, rotationFor, type ChallengeState, type PlayerChallenge } from "@/lib/challenges";
+import { addDays } from "@/lib/week";
 import { useGame } from "@/lib/store";
 import { Avatar } from "./Avatar";
 import { Confetti } from "./Confetti";
@@ -12,8 +13,12 @@ import { CheckIcon, ChevronRight, FlameIcon } from "./Icons";
 export function useChallengeStates(): ChallengeState[] {
   const { data, game } = useGame();
   return useMemo(
-    () => computeChallenges(data.challenges, data.challengeLogs, data.players, game.today, data.settings.timezone),
-    [data.challenges, data.challengeLogs, data.players, game.today, data.settings.timezone],
+    () =>
+      computeChallenges(data.challenges, data.challengeLogs, data.players, game.today, data.settings.timezone, {
+        rotation: data.settings.challengeRotation,
+        anchor: anchorOf(data.settings),
+      }),
+    [data.challenges, data.challengeLogs, data.players, game.today, data.settings],
   );
 }
 
@@ -145,7 +150,7 @@ function OtherRow({ p, unit }: { p: PlayerChallenge; unit: string }) {
 }
 
 /** Home-screen card: your progress + quick log, and how everyone else is doing. */
-export function ChallengeCard({ state }: { state: ChallengeState }) {
+export function ChallengeCard({ state, eyebrow, footer }: { state: ChallengeState; eyebrow?: string; footer?: React.ReactNode }) {
   const { me } = useGame();
   const c = state.challenge;
   const mine = state.players.find((p) => p.player.id === me?.id);
@@ -158,9 +163,10 @@ export function ChallengeCard({ state }: { state: ChallengeState }) {
           {c.emoji}
         </span>
         <div className="min-w-0 flex-1">
+          {eyebrow && <p className="text-[10px] font-bold tracking-wider text-volt uppercase">{eyebrow}</p>}
           <p className="font-display text-[17px] leading-tight font-extrabold">{c.name}</p>
           <p className="text-xs text-muted">
-            {fmt(c.dailyTarget)} {c.unit} a day
+            {fmt(c.dailyTarget)} {c.unit} {eyebrow ? "today" : "a day"}
             {state.everyoneDone ? " · everyone's done 🎉" : ` · ${state.doneCount}/${state.players.length} done`}
           </p>
         </div>
@@ -206,12 +212,14 @@ export function ChallengeCard({ state }: { state: ChallengeState }) {
           ))}
         </ul>
       )}
+      {footer}
     </div>
   );
 }
 
 /** All active challenges for Home, plus a nudge to add one if there are none. */
 export function ChallengesHome() {
+  const { data, game } = useGame();
   const states = useChallengeStates();
   if (states.length === 0) {
     return (
@@ -219,6 +227,25 @@ export function ChallengesHome() {
         <span>💪 Add a daily challenge (like 100 pushups)</span>
         <ChevronRight size={16} />
       </Link>
+    );
+  }
+  if (data.settings.challengeRotation) {
+    const tomorrow = rotationFor(data.challenges, addDays(game.today, 1), anchorOf(data.settings));
+    return (
+      <ChallengeCard
+        state={states[0]}
+        eyebrow="Today's challenge"
+        footer={
+          tomorrow && (
+            <Link href="/challenges" className="mt-3 flex items-center justify-between border-t border-line pt-3 text-xs text-muted hover:text-ink">
+              <span>
+                Tomorrow: {tomorrow.emoji} <span className="font-semibold text-ink-2">{tomorrow.name}</span> · {fmt(tomorrow.dailyTarget)} {tomorrow.unit}
+              </span>
+              <ChevronRight size={14} />
+            </Link>
+          )
+        }
+      />
     );
   }
   return (
