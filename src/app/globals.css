@@ -150,6 +150,12 @@ input, textarea, select {
 .tiles-dim { filter: brightness(0.62) contrast(1.15) saturate(0.8); }
 .checkin-marker { background: none !important; border: none !important; }
 
+/* Top loading bar while a tab opens */
+@keyframes navload {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

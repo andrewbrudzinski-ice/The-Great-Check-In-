@@ -10,7 +10,7 @@ import { REACTIONS, type ChatMessage, type Player } from "@/lib/types";
 import { formatTime, localDate, longDate } from "@/lib/week";
 
 /** Height of the bottom tab bar (without the safe-area inset). */
-const NAV_H = 58;
+const NAV_H = 60;
 
 /**
  * How far the on-screen keyboard covers the page. iPhone browsers shrink the
