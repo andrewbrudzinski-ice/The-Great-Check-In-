@@ -1,6 +1,6 @@
 // Daily challenges: who's hit today's target, streaks, and the last 7 days.
 // Pure — no React, no I/O.
-import type { Challenge, ChallengeLog, Player } from "./types.ts";
+import type { Challenge, ChallengeLog, ChallengePick, Player } from "./types.ts";
 import { addDays, localDate } from "./week.ts";
 
 export type ChallengeDay = {
@@ -12,24 +12,12 @@ export type ChallengeDay = {
   challengeId?: string;
 };
 
-// ---- Rotation ---------------------------------------------------------------
-// One challenge a day for everyone, cycling through active challenges in
-// sort order. On anchor.day the rotation sits at anchor.index, then moves one
-// a day. Must match rotation_challenge_for() in the database.
+// ---- Random daily challenge -------------------------------------------------
+// One challenge a day for everyone, picked at random (never yesterday's when
+// there's a choice). The database saves each day's pick (todays_challenge()),
+// so it can't change mid-day.
 
-export type RotationAnchor = { day: string; index: number };
-export const DEFAULT_ANCHOR: RotationAnchor = { day: "2024-01-01", index: 0 };
-export const anchorOf = (s: { rotationAnchorDay: string; rotationAnchorIndex: number }): RotationAnchor => ({
-  day: s.rotationAnchorDay,
-  index: s.rotationAnchorIndex,
-});
-
-const utcDay = (day: string) => {
-  const [y, m, d] = day.split("-").map(Number);
-  return Date.UTC(y, m - 1, d);
-};
-
-/** Active challenges in rotation order. */
+/** Active challenges in list order. */
 export function sortedChallenges(challenges: Challenge[]): Challenge[] {
   return challenges
     .filter((c) => !c.archived)
@@ -37,31 +25,17 @@ export function sortedChallenges(challenges: Challenge[]): Challenge[] {
     .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
 }
 
-/** The challenge on the rotation for a given day (YYYY-MM-DD). */
-export function rotationFor(challenges: Challenge[], day: string, anchor: RotationAnchor = DEFAULT_ANCHOR): Challenge | null {
+/** The day's picked challenge, if there was one (and it still exists). */
+export function pickFor(picks: ChallengePick[], challenges: Challenge[], day: string): Challenge | null {
+  const id = picks.find((p) => p.day === day)?.challengeId;
+  return (id && challenges.find((c) => c.id === id)) || null;
+}
+
+/** A random active challenge, avoiding `avoidId` (yesterday's) when there's a choice. */
+export function randomPick(challenges: Challenge[], avoidId: string | null | undefined, rand: () => number = Math.random): Challenge | null {
   const pool = sortedChallenges(challenges);
-  if (!pool.length) return null;
-  const n = anchor.index + Math.round((utcDay(day) - utcDay(anchor.day)) / 86400000);
-  return pool[((n % pool.length) + pool.length) % pool.length];
-}
-
-/**
- * The anchor that keeps `today`'s challenge in place after the list changes
- * (`before` → `after`). If today's was retired, whatever takes its slot runs today.
- */
-export function repinAnchor(before: Challenge[], after: Challenge[], today: string, anchor: RotationAnchor): RotationAnchor {
-  const keep = rotationFor(before, today, anchor);
-  const oldPos = keep ? sortedChallenges(before).findIndex((c) => c.id === keep.id) : 0;
-  const newPos = keep ? sortedChallenges(after).findIndex((c) => c.id === keep.id) : -1;
-  return { day: today, index: newPos >= 0 ? newPos : Math.max(0, oldPos) };
-}
-
-/** The next `count` days of the rotation, starting with `from`. */
-export function rotationSchedule(challenges: Challenge[], from: string, count: number, anchor: RotationAnchor = DEFAULT_ANCHOR) {
-  return Array.from({ length: count }, (_, i) => {
-    const day = addDays(from, i);
-    return { day, challenge: rotationFor(challenges, day, anchor) };
-  }).filter((x): x is { day: string; challenge: Challenge } => !!x.challenge);
+  const choices = pool.length > 1 ? pool.filter((c) => c.id !== avoidId) : pool;
+  return choices.length ? choices[Math.floor(rand() * choices.length) % choices.length] : null;
 }
 
 /**
@@ -140,9 +114,11 @@ export function computeChallenges(
   players: Player[],
   today: string,
   tz: string,
-  opts: { rotation?: boolean; anchor?: RotationAnchor } = {},
+  opts: { rotation?: boolean; picks?: ChallengePick[] } = {},
 ): ChallengeState[] {
-  const active = opts.rotation ? [rotationFor(challenges, today, opts.anchor)].filter((c): c is Challenge => !!c) : sortedChallenges(challenges);
+  const picks = opts.picks ?? [];
+  const todays = pickFor(picks, challenges, today);
+  const active = opts.rotation ? [todays && !todays.archived ? todays : null].filter((c): c is Challenge => !!c) : sortedChallenges(challenges);
   return active
     .map((challenge) => {
       const mine = logs.filter((l) => l.challengeId === challenge.id);
@@ -170,12 +146,12 @@ export function computeChallenges(
         let streak = 0;
         let last7: ChallengeDay[];
         if (opts.rotation) {
-          // Rotation: the streak and grid follow "the day's challenge", whatever it was.
+          // Random mode: the streak and grid follow "the day's challenge", whatever it was.
           streak = dailyStreaks(challenges, logs, player.id, today).current;
           const daily = dailyDays(challenges, logs, player.id, today);
           last7 = Array.from({ length: 7 }, (_, i) => {
             const day = addDays(today, i - 6);
-            return daily(day, rotationFor(challenges, day, opts.anchor));
+            return daily(day, pickFor(picks, challenges, day));
           });
         } else {
           for (let d = t.done ? today : addDays(today, -1); d >= startDay; d = addDays(d, -1)) {

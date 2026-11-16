@@ -41,11 +41,8 @@ export type Settings = {
   cooldownHours: number;
   punishment: string;
   timezone: string;
-  /** One challenge a day for everyone (rotating), or every challenge every day. */
+  /** One random challenge a day for everyone, or every challenge every day. */
   challengeRotation: boolean;
-  /** Rotation position: on this day it's at this index (re-pinned when the list changes). */
-  rotationAnchorDay: string;
-  rotationAnchorIndex: number;
 };
 
 export type Gym = {
@@ -77,6 +74,9 @@ export type Challenge = {
 };
 
 /** One logged set. `day` is the club-timezone date it counts for. */
+/** The challenge picked for a day (random mode). */
+export type ChallengePick = { day: string; challengeId: string };
+
 export type ChallengeLog = {
   id: string;
   challengeId: string;
@@ -148,6 +148,7 @@ export type AppData = {
   gyms: Gym[];
   challenges: Challenge[];
   challengeLogs: ChallengeLog[];
+  challengePicks: ChallengePick[];
   programs: Program[];
   programDays: ProgramDay[];
   /** The most recent chat messages, oldest first. */

@@ -13,8 +13,6 @@ export const DEFAULT_SETTINGS: Settings = {
   punishment: "Saturday 6 AM group workout. Nobody skips.",
   timezone: "America/New_York",
   challengeRotation: true,
-  rotationAnchorDay: "2024-01-01",
-  rotationAnchorIndex: 0,
 };
 
 /** Fixed player color order — color follows the player, never their rank. */

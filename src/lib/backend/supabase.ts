@@ -1,7 +1,15 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_SETTINGS, SUPABASE_ANON_KEY, SUPABASE_URL } from "../config";
-import type { AppData, Challenge, ChallengeLog, ChatMessage, MessageReaction, Program, ProgramDay, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
+import type { AppData, Challenge, ChallengeLog, ChallengePick, ChatMessage, MessageReaction, Program, ProgramDay, CheckIn, CheckInResult, Gym, Player, Punishment, Settings, WeekResult } from "../types";
 import { loginEmail } from "../login-name";
+import { localDate } from "../week";
+
+/** Past picks with today's (from todays_challenge()) folded in. */
+function withToday(picks: ChallengePick[], todayId: string | null, tz: string): ChallengePick[] {
+  if (!todayId) return picks;
+  const day = localDate(new Date(), tz);
+  return [...picks.filter((p) => p.day !== day), { day, challengeId: todayId }];
+}
 import type { Backend, GymInput, Session } from "./types";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -45,8 +53,6 @@ const toSettings = (r: Row | null): Settings =>
         timezone: r.timezone,
         // Older databases (before the rotation migration) do every challenge daily.
         challengeRotation: r.challenge_rotation ?? false,
-        rotationAnchorDay: r.rotation_anchor_day ?? "2024-01-01",
-        rotationAnchorIndex: r.rotation_anchor_index ?? 0,
       }
     : DEFAULT_SETTINGS;
 
@@ -59,8 +65,6 @@ const SETTINGS_COLUMNS: Record<keyof Settings, string> = {
   punishment: "punishment",
   timezone: "timezone",
   challengeRotation: "challenge_rotation",
-  rotationAnchorDay: "rotation_anchor_day",
-  rotationAnchorIndex: "rotation_anchor_index",
 };
 
 const toGym = (r: Row): Gym => ({
@@ -287,7 +291,7 @@ export function createSupabaseBackend(): Backend {
     },
 
     async load(): Promise<AppData> {
-      const [players, checkIns, settings, results, punishments, gyms, challenges, challengeLogs, programs, programDays, messages, reactions] = await Promise.all([
+      const [players, checkIns, settings, results, punishments, gyms, challenges, challengeLogs, programs, programDays, messages, reactions, picks, todayPick] = await Promise.all([
         selectAll(sb, "users", "*", "created_at"),
         selectAll(sb, "check_ins", "*", "checked_in_at"),
         sb.from("settings").select("*").eq("id", 1).maybeSingle(),
@@ -309,6 +313,9 @@ export function createSupabaseBackend(): Backend {
           .limit(CHAT_HISTORY)
           .then(({ data, error }) => (error ? [] : ((data as Row[]) ?? []).reverse())),
         selectAll(sb, "message_reactions", "*", "created_at").catch(() => []),
+        // Random daily challenge: past picks, plus today's (picked now if nobody has yet).
+        selectAll(sb, "challenge_days", "*", "day").catch(() => []),
+        sb.rpc("todays_challenge").then(({ data, error }) => (error ? null : ((data as string | null) ?? null))),
       ]);
       if (settings.error) throw settings.error;
       return {
@@ -318,6 +325,11 @@ export function createSupabaseBackend(): Backend {
         gyms: gyms.map(toGym),
         challenges: challenges.map(toChallenge),
         challengeLogs: challengeLogs.map(toChallengeLog),
+        challengePicks: withToday(
+          picks.map((r: Row) => ({ day: r.day, challengeId: r.challenge_id })),
+          todayPick,
+          toSettings(settings.data).timezone,
+        ),
         programs: programs.map(toProgram),
         programDays: programDays.map(toProgramDay),
         messages: messages.map(toMessage),
@@ -429,9 +441,6 @@ export function createSupabaseBackend(): Backend {
       await challengeRpc("archive_challenge", { p_id: id });
     },
 
-    async setChallengeOrder(ids) {
-      await challengeRpc("set_challenge_order", { p_ids: ids });
-    },
 
     async archiveGym(id) {
       await gymRpc("archive_gym", { p_gym: id });
@@ -491,6 +500,7 @@ export function createSupabaseBackend(): Backend {
         .on("postgres_changes", { event: "*", schema: "public", table: "punishments" }, () => cb())
         .on("postgres_changes", { event: "*", schema: "public", table: "gyms" }, () => cb())
         .on("postgres_changes", { event: "*", schema: "public", table: "challenge_logs" }, () => cb())
+        .on("postgres_changes", { event: "*", schema: "public", table: "challenge_days" }, () => cb())
         .on("postgres_changes", { event: "*", schema: "public", table: "challenges" }, () => cb())
         .on("postgres_changes", { event: "*", schema: "public", table: "programs" }, () => cb())
         .on("postgres_changes", { event: "*", schema: "public", table: "program_days" }, () => cb())

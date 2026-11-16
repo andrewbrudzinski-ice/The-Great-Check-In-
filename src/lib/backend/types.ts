@@ -42,7 +42,6 @@ export interface Backend {
   saveChallenge(input: ChallengeInput): Promise<void>;
   archiveChallenge(id: string): Promise<void>;
   /** Reorder the daily rotation (every active challenge id, in order). */
-  setChallengeOrder(ids: string[]): Promise<void>;
   /** Start your own 75 Hard / Soft (or shorter) run. */
   startProgram(input: ProgramInput): Promise<void>;
   /** Tick/untick a task on your run, for today or yesterday. */

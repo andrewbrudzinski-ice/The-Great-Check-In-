@@ -7,7 +7,7 @@ import { Avatar } from "@/components/Avatar";
 import { ChallengeBar, fmt, LogButtons, useChallengeStates } from "@/components/Challenges";
 import { ChevronLeft, FlameIcon } from "@/components/Icons";
 import { PageTitle, SectionTitle, Sheet } from "@/components/ui";
-import { anchorOf, rotationFor, rotationSchedule, sortedChallenges, type ChallengeDay, type ChallengeState } from "@/lib/challenges";
+import { pickFor, sortedChallenges, type ChallengeDay, type ChallengeState } from "@/lib/challenges";
 import { useGame } from "@/lib/store";
 import type { Challenge } from "@/lib/types";
 import { DAY_SHORT, dayIndex, formatTime } from "@/lib/week";
@@ -40,7 +40,7 @@ export default function ChallengesPage() {
         <ChevronLeft size={16} /> Home
       </Link>
       <PageTitle
-        eyebrow={rotation ? "A different one every day" : "Every day, on top of the gym"}
+        eyebrow={rotation ? "A random one every day" : "Every day, on top of the gym"}
         title="Challenges"
         right={
           <button onClick={() => setEditing("new")} className="rounded-full bg-volt px-4 py-2 font-display text-sm font-black text-volt-ink">
@@ -64,7 +64,7 @@ export default function ChallengesPage() {
         {states.map((s) => (
           <ChallengeSection key={s.challenge.id} state={s} rotation={rotation} onEdit={() => setEditing(s.challenge)} />
         ))}
-        {rotation && states.length > 0 && <RotationPanel onEdit={setEditing} />}
+        {rotation && states.length > 0 && <MixPanel onEdit={setEditing} />}
         <IdeasPanel />
         <ModeSwitch />
       </div>
@@ -78,64 +78,34 @@ export default function ChallengesPage() {
   );
 }
 
-/** The rotation order (reorderable) and what's coming up this week. */
-function RotationPanel({ onEdit }: { onEdit: (c: Challenge) => void }) {
-  const { data, game, setChallengeOrder } = useGame();
-  const order = sortedChallenges(data.challenges);
-  const anchor = anchorOf(data.settings);
-  const upcoming = rotationSchedule(data.challenges, game.today, 7, anchor);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const nextDay = (id: string) => rotationSchedule(data.challenges, game.today, order.length, anchor).find((d) => d.challenge.id === id)?.day;
-  const when = (day?: string) => {
-    if (!day) return "";
-    const i = upcoming.findIndex((d) => d.day === day);
-    return i === 0 ? "Today" : i === 1 ? "Tomorrow" : DAY_SHORT[dayIndex(day)];
+/** Everything that can come up, with when each was last picked. */
+function MixPanel({ onEdit }: { onEdit: (c: Challenge) => void }) {
+  const { data, game } = useGame();
+  const mix = sortedChallenges(data.challenges);
+  const lastPicked = (id: string) =>
+    data.challengePicks
+      .filter((p) => p.challengeId === id && p.day <= game.today)
+      .map((p) => p.day)
+      .sort()
+      .pop();
+  const ago = (day?: string) => {
+    if (!day) return "not picked yet";
+    if (day === game.today) return "today";
+    const n = Math.round((Date.parse(game.today) - Date.parse(day)) / 86400000);
+    return n === 1 ? "last: yesterday" : n < 7 ? `last: ${DAY_SHORT[dayIndex(day)]}` : `last: ${n} days ago`;
   };
-
-  async function move(i: number, dir: -1 | 1) {
-    const j = i + dir;
-    if (j < 0 || j >= order.length || busy) return;
-    const ids = order.map((c) => c.id);
-    [ids[i], ids[j]] = [ids[j], ids[i]];
-    setBusy(true);
-    setError(null);
-    try {
-      await setChallengeOrder(ids);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't reorder.");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <section>
-      <SectionTitle>Coming up</SectionTitle>
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {upcoming.map(({ day, challenge: c }, i) => (
-          <div
-            key={day}
-            className={`flex w-[68px] shrink-0 flex-col items-center rounded-2xl border px-1 py-2.5 ${i === 0 ? "border-volt/50 bg-volt/[0.06]" : "border-line bg-surface/60"}`}
-          >
-            <span className={`text-[10px] font-bold uppercase ${i === 0 ? "text-volt" : "text-muted"}`}>{i === 0 ? "Today" : DAY_SHORT[dayIndex(day)]}</span>
-            <span className="mt-1 text-xl" aria-hidden>
-              {c.emoji}
-            </span>
-            <span className="mt-1 w-full truncate text-center text-[11px] font-semibold">{c.name}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-8">
-        <SectionTitle>Rotation order</SectionTitle>
-        <p className="-mt-1 mb-3 text-xs text-muted">
-          One a day for everyone, top to bottom, then it starts over. Moving or adding one never changes today&apos;s; it kicks in tomorrow. Tap Edit to
-          change a number.
-        </p>
-        <ol className="divide-y divide-line rounded-3xl border border-line bg-surface/60">
-          {order.map((c, i) => (
+      <SectionTitle>In the mix</SectionTitle>
+      <p className="-mt-1 mb-3 text-xs text-muted">
+        Each day one of these is picked at random for everyone, never the same as yesterday. Today&apos;s pick is locked in; changes here count from
+        tomorrow. Tap Edit to change a number.
+      </p>
+      <ul className="divide-y divide-line rounded-3xl border border-line bg-surface/60">
+        {mix.map((c) => {
+          const when = ago(lastPicked(c.id));
+          return (
             <li key={c.id} className="flex items-center gap-3 px-3.5 py-3">
               <span className="text-xl" aria-hidden>
                 {c.emoji}
@@ -143,39 +113,16 @@ function RotationPanel({ onEdit }: { onEdit: (c: Challenge) => void }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{c.name}</p>
                 <p className="text-xs text-muted">
-                  {fmt(c.dailyTarget)} {c.unit}
-                  {(() => {
-                    const w = when(nextDay(c.id));
-                    return w ? <span className={w === "Today" ? "text-volt" : ""}> · {w}</span> : null;
-                  })()}
+                  {fmt(c.dailyTarget)} {c.unit} · <span className={when === "today" ? "font-semibold text-volt" : ""}>{when}</span>
                 </p>
               </div>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => move(i, -1)}
-                  disabled={busy || i === 0}
-                  aria-label={`Move ${c.name} up`}
-                  className="grid h-8 w-8 place-items-center rounded-full bg-surface-2 text-sm text-ink-2 disabled:opacity-30"
-                >
-                  ↑
-                </button>
-                <button
-                  onClick={() => move(i, 1)}
-                  disabled={busy || i === order.length - 1}
-                  aria-label={`Move ${c.name} down`}
-                  className="grid h-8 w-8 place-items-center rounded-full bg-surface-2 text-sm text-ink-2 disabled:opacity-30"
-                >
-                  ↓
-                </button>
-                <button onClick={() => onEdit(c)} className="ml-1 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold text-ink-2 hover:text-ink">
-                  Edit
-                </button>
-              </div>
+              <button onClick={() => onEdit(c)} className="rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold text-ink-2 hover:text-ink">
+                Edit
+              </button>
             </li>
-          ))}
-        </ol>
-        {error && <p className="mt-2 text-sm text-problem">{error}</p>}
-      </div>
+          );
+        })}
+      </ul>
     </section>
   );
 }
@@ -205,7 +152,7 @@ function IdeasPanel() {
     <section>
       <SectionTitle>Ideas</SectionTitle>
       <p className="-mt-1 mb-3 text-xs text-muted">
-        Not in the {data.settings.challengeRotation ? "rotation" : "club"} yet. Tap Add to put one in; you can change the number after.
+        Not in the {data.settings.challengeRotation ? "mix" : "club"} yet. Tap Add to put one in; you can change the number after.
       </p>
       <ul className="grid grid-cols-2 gap-2">
         {ideas.map((idea) => (
@@ -261,14 +208,14 @@ function ModeSwitch() {
       <SectionTitle>How challenges run · admin</SectionTitle>
       <div className="flex rounded-full border border-line bg-surface p-1" role="radiogroup" aria-label="Challenge mode">
         <button role="radio" aria-checked={rotation} disabled={busy} onClick={() => set(true)} className={opt(rotation)}>
-          Rotate daily
+          Random daily
         </button>
         <button role="radio" aria-checked={!rotation} disabled={busy} onClick={() => set(false)} className={opt(!rotation)}>
           All every day
         </button>
       </div>
       <p className="mt-2 text-xs text-muted">
-        {rotation ? "Everyone does the same one challenge each day, cycling through the list." : "Every challenge is on, every day."}
+        {rotation ? "Everyone does the same one challenge each day, picked at random." : "Every challenge is on, every day."}
       </p>
       {error && <p className="mt-2 text-sm text-problem">{error}</p>}
     </section>
@@ -280,16 +227,17 @@ function ChallengeSection({ state, rotation, onEdit }: { state: ChallengeState; 
   const c = state.challenge;
   const mine = state.players.find((p) => p.player.id === me?.id);
   const days = state.players[0]?.last7.map((d) => d.day) ?? [];
-  // Past days: what people actually did (the order may have changed since); today and empty days: the rotation.
+  // Each day's pick (or, before picks were saved, whatever most people logged).
   const dayEmoji = (day: string) => {
+    const picked = pickFor(data.challengePicks, data.challenges, day);
+    if (picked) return picked.emoji;
     const counts = new Map<string, number>();
     for (const p of state.players) {
       const cid = p.last7.find((x) => x.day === day && x.total > 0)?.challengeId;
       if (cid) counts.set(cid, (counts.get(cid) ?? 0) + 1);
     }
     const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-    const id = day === days[days.length - 1] ? c.id : top;
-    return (id ? data.challenges.find((x) => x.id === id) : rotationFor(data.challenges, day, anchorOf(data.settings)))?.emoji;
+    return data.challenges.find((x) => x.id === top)?.emoji;
   };
   const [error, setError] = useState<string | null>(null);
 
@@ -300,7 +248,7 @@ function ChallengeSection({ state, rotation, onEdit }: { state: ChallengeState; 
           {c.emoji}
         </span>
         <div className="min-w-0 flex-1">
-          {rotation && <p className="text-[10px] font-bold tracking-wider text-volt uppercase">Today&apos;s challenge</p>}
+          {rotation && <p className="text-[10px] font-bold tracking-wider text-volt uppercase">🎲 Today&apos;s random challenge</p>}
           <h2 className="font-display text-2xl leading-tight font-black">{c.name}</h2>
           <p className="text-sm text-muted">
             {fmt(c.dailyTarget)} {c.unit} {rotation ? "today" : "every day"}

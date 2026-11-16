@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeChallenges, dailyStreaks, lifetimeStats, quickAmounts, repinAnchor, rotationFor, rotationSchedule } from "./challenges.ts";
+import { computeChallenges, dailyStreaks, lifetimeStats, pickFor, quickAmounts, randomPick } from "./challenges.ts";
 import type { Challenge, ChallengeLog, Player } from "./types.ts";
 
 const tz = "America/New_York";
@@ -70,17 +70,26 @@ const mk = (id: string, sortOrder: number, dailyTarget = 100, unit = "reps"): Ch
 });
 const pool = [mk("Pushups", 1), mk("Sit-ups", 2), mk("Burpees", 3, 50), mk("Abs", 4, 10, "min")];
 
-test("rotation matches the server's rotation_challenge_for()", () => {
-  // Same order and epoch the Postgres test used: Mon 2026-11-16 → Burpees.
-  assert.equal(rotationFor(pool, "2026-11-16")?.id, "Burpees");
-  assert.deepEqual(rotationSchedule(pool, "2026-11-16", 6).map((d) => d.challenge.id), ["Burpees", "Abs", "Pushups", "Sit-ups", "Burpees", "Abs"]);
-  // Retired challenges drop out; order follows sortOrder, not array order.
-  const shuffled = [pool[3], pool[1], { ...pool[2], archived: true }, pool[0]];
-  assert.deepEqual(rotationSchedule(shuffled, "2026-11-16", 3).map((d) => d.challenge.id), ["Pushups", "Sit-ups", "Abs"]);
-  assert.equal(rotationFor([], "2026-11-16"), null);
+test("random pick: never yesterday's when there's a choice, never a retired one", () => {
+  let seed = 7;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  let prev: string | undefined;
+  const seen = new Map<string, number>();
+  for (let i = 0; i < 400; i++) {
+    const c = randomPick(pool, prev, rand)!;
+    assert.notEqual(c.id, prev);
+    seen.set(c.id, (seen.get(c.id) ?? 0) + 1);
+    prev = c.id;
+  }
+  assert.equal(seen.size, 4); // everything comes up
+  for (const n of seen.values()) assert.ok(n > 70, `spread too uneven: ${[...seen]}`);
+  assert.equal(randomPick([pool[0]], "Pushups")?.id, "Pushups"); // only one: repeats are fine
+  assert.equal(randomPick([{ ...pool[0], archived: true }], null), null);
+  assert.equal(pickFor([{ day: "2026-11-16", challengeId: "Abs" }], pool, "2026-11-16")?.id, "Abs");
+  assert.equal(pickFor([], pool, "2026-11-16"), null);
 });
 
-test("rotation mode: one card for today's challenge, streak across different exercises", () => {
+test("random mode: one card for today's pick, streak across different exercises", () => {
   const L = (cid: string, day: string, amount: number, target: number): ChallengeLog =>
     ({ id: String(n++), challengeId: cid, userId: "A", amount, target, day, loggedAt: `${day}T12:00:00Z` });
   const logs = [
@@ -89,9 +98,16 @@ test("rotation mode: one card for today's challenge, streak across different exe
     L("Burpees", "2026-11-15", 30, 50), L("Burpees", "2026-11-15", 20, 50), // Sun: Burpees (done, 2 sets)
     L("Abs", "2026-11-16", 4, 10), // Mon: Abs in progress
   ];
-  const states = computeChallenges(pool, logs, players, "2026-11-16", tz, { rotation: true });
+  const picks = [
+    { day: "2026-11-13", challengeId: "Pushups" },
+    { day: "2026-11-14", challengeId: "Sit-ups" },
+    { day: "2026-11-15", challengeId: "Burpees" },
+    { day: "2026-11-16", challengeId: "Abs" },
+  ];
+  const states = computeChallenges(pool, logs, players, "2026-11-16", tz, { rotation: true, picks });
   assert.equal(states.length, 1);
-  assert.equal(states[0].challenge.id, "Burpees"); // the rotation decides, not the logs
+  assert.equal(states[0].challenge.id, "Abs"); // the saved pick decides
+  assert.equal(computeChallenges(pool, logs, players, "2026-11-16", tz, { rotation: true }).length, 0); // not picked yet
   const a = states[0].players.find((p) => p.player.id === "A")!;
   assert.equal(a.streak, 3); // Fri–Sun, each a different exercise; today still open
   assert.deepEqual(a.last7.slice(-4).map((d) => [d.challengeId, d.done]), [["Pushups", true], ["Sit-ups", true], ["Burpees", true], ["Abs", false]]);
@@ -110,20 +126,4 @@ test("each exercise keeps its own totals and best day", () => {
   assert.equal(by.Pushups.daysCompleted, 2);
   assert.equal(by["Sit-ups"].total, 80); // sit-ups never count toward pushups
   assert.equal(by["Sit-ups"].daysCompleted, 0);
-});
-
-test("adding, reordering or retiring never changes today's challenge", () => {
-  const ids = (cs: Challenge[], a: { day: string; index: number }) => rotationSchedule(cs, "2026-11-16", 5, a).map((d) => d.challenge.id);
-  const start = { day: "2026-11-16", index: 0 }; // like the migration: Pushups first, today
-  assert.deepEqual(ids(pool, start), ["Pushups", "Sit-ups", "Burpees", "Abs", "Pushups"]);
-  const added = [...pool, mk("Squats", 5)];
-  const a1 = repinAnchor(pool, added, "2026-11-16", start);
-  assert.deepEqual(ids(added, a1), ["Pushups", "Sit-ups", "Burpees", "Abs", "Squats"]);
-  const reversed = added.map((c, i) => ({ ...c, sortOrder: 10 - i })); // Squats, Abs, Burpees, Sit-ups, Pushups
-  const a2 = repinAnchor(added, reversed, "2026-11-16", a1);
-  assert.deepEqual(ids(reversed, a2), ["Pushups", "Squats", "Abs", "Burpees", "Sit-ups"]); // same as the DB test
-  const retired = reversed.map((c) => (c.id === "Pushups" ? { ...c, archived: true } : c));
-  const a3 = repinAnchor(reversed, retired, "2026-11-16", a2);
-  assert.deepEqual(ids(retired, a3), ["Squats", "Abs", "Burpees", "Sit-ups", "Squats"]);
-  assert.deepEqual(a3, { day: "2026-11-16", index: 4 }); // same anchor the DB stored
 });

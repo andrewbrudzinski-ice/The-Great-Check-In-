@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
-import { anchorOf, computeChallenges, quickAmounts, rotationFor, type ChallengeState, type PlayerChallenge } from "@/lib/challenges";
-import { addDays } from "@/lib/week";
+import { computeChallenges, quickAmounts, sortedChallenges, type ChallengeState, type PlayerChallenge } from "@/lib/challenges";
 import { useGame } from "@/lib/store";
 import { Avatar } from "./Avatar";
 import { Confetti } from "./Confetti";
@@ -16,9 +15,9 @@ export function useChallengeStates(): ChallengeState[] {
     () =>
       computeChallenges(data.challenges, data.challengeLogs, data.players, game.today, data.settings.timezone, {
         rotation: data.settings.challengeRotation,
-        anchor: anchorOf(data.settings),
+        picks: data.challengePicks,
       }),
-    [data.challenges, data.challengeLogs, data.players, game.today, data.settings],
+    [data.challenges, data.challengeLogs, data.challengePicks, data.players, game.today, data.settings],
   );
 }
 
@@ -219,7 +218,7 @@ export function ChallengeCard({ state, eyebrow, footer }: { state: ChallengeStat
 
 /** All active challenges for Home, plus a nudge to add one if there are none. */
 export function ChallengesHome() {
-  const { data, game } = useGame();
+  const { data } = useGame();
   const states = useChallengeStates();
   if (states.length === 0) {
     return (
@@ -230,20 +229,18 @@ export function ChallengesHome() {
     );
   }
   if (data.settings.challengeRotation) {
-    const tomorrow = rotationFor(data.challenges, addDays(game.today, 1), anchorOf(data.settings));
+    const mix = sortedChallenges(data.challenges);
     return (
       <ChallengeCard
         state={states[0]}
-        eyebrow="Today's challenge"
+        eyebrow="Today's random challenge"
         footer={
-          tomorrow && (
-            <Link href="/challenges" className="mt-3 flex items-center justify-between border-t border-line pt-3 text-xs text-muted hover:text-ink">
-              <span>
-                Tomorrow: {tomorrow.emoji} <span className="font-semibold text-ink-2">{tomorrow.name}</span> · {fmt(tomorrow.dailyTarget)} {tomorrow.unit}
-              </span>
-              <ChevronRight size={14} />
-            </Link>
-          )
+          <Link href="/challenges" className="mt-3 flex items-center justify-between border-t border-line pt-3 text-xs text-muted hover:text-ink">
+            <span>
+              🎲 Picked from {mix.map((c) => c.emoji).join(" ")} · tomorrow&apos;s a surprise
+            </span>
+            <ChevronRight size={14} />
+          </Link>
         }
       />
     );
