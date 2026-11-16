@@ -41,6 +41,7 @@ export interface Backend {
   /** Create (no id) or edit a challenge. Any player can. */
   saveChallenge(input: ChallengeInput): Promise<void>;
   archiveChallenge(id: string): Promise<void>;
+  /** Reorder the daily rotation (every active challenge id, in order). */
   /** Start your own 75 Hard / Soft (or shorter) run. */
   startProgram(input: ProgramInput): Promise<void>;
   /** Tick/untick a task on your run, for today or yesterday. */

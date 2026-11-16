@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS: Settings = {
   cooldownHours: 4,
   punishment: "Saturday 6 AM group workout. Nobody skips.",
   timezone: "America/New_York",
+  challengeRotation: true,
 };
 
 /** Fixed player color order — color follows the player, never their rank. */

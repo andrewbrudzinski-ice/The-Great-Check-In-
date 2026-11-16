@@ -8,7 +8,7 @@ import { Avatar } from "@/components/Avatar";
 import { GearIcon } from "@/components/Icons";
 import { Ring, SectionTitle, StatusPill } from "@/components/ui";
 import type { PlayerStats } from "@/lib/game";
-import { lifetimeStats } from "@/lib/challenges";
+import { dailyStreaks, lifetimeStats } from "@/lib/challenges";
 import { programSummary, runLabel } from "@/lib/programs";
 import { STATUS_META } from "@/lib/game";
 import { formatDistance } from "@/lib/geo";
@@ -37,6 +37,8 @@ function Profile() {
   const isMe = player.id === me?.id;
   const hard = programSummary(data.programs, data.programDays, player.id, game.today);
   const challengeStats = lifetimeStats(data.challenges, data.challengeLogs, player.id, game.today, data.settings.timezone);
+  const rotation = data.settings.challengeRotation;
+  const daily = dailyStreaks(data.challenges, data.challengeLogs, player.id, game.today);
   const mineAll = data.checkIns.filter((c) => c.userId === player.id);
   const recent = mineAll.slice(-8).reverse();
   // Visits per gym, most-used first
@@ -204,6 +206,16 @@ function Profile() {
           <SectionTitle right={<Link href="/challenges" className="text-[11px] font-semibold text-muted hover:text-ink">All →</Link>}>
             Daily challenges
           </SectionTitle>
+          {rotation && (
+            <div className="mb-3 rounded-2xl border border-line bg-surface/50 p-4">
+              <dl className="grid grid-cols-3 gap-3">
+                <MiniStat label="Days in a row" value={String(daily.current)} flame={daily.current > 0} />
+                <MiniStat label="Best run" value={String(daily.best)} />
+                <MiniStat label="Today" value={daily.doneToday ? "✓" : "–"} tone={daily.doneToday ? "safe" : undefined} />
+              </dl>
+              <p className="mt-2 text-xs text-muted">Whatever the day&apos;s challenge is, it counts toward the run.</p>
+            </div>
+          )}
           <ul className="space-y-3">
             {challengeStats.map((cs) => (
               <li key={cs.challenge.id} className="rounded-2xl border border-line bg-surface/50 p-4">
@@ -216,18 +228,21 @@ function Profile() {
                     {cs.challenge.archived && <span className="ml-2 text-[10px] font-bold tracking-wider text-muted">RETIRED</span>}
                   </span>
                   <span className="text-xs text-muted">
-                    {cs.challenge.dailyTarget.toLocaleString("en-US")} {cs.challenge.unit}/day
+                    {cs.challenge.dailyTarget.toLocaleString("en-US")} {cs.challenge.unit}
+                    {rotation ? "" : "/day"}
                   </span>
                 </div>
                 <dl className="mt-3 grid grid-cols-3 gap-3">
                   <MiniStat label={`Total ${cs.challenge.unit}`} value={cs.total.toLocaleString("en-US")} />
                   <MiniStat label="Days done" value={String(cs.daysCompleted)} tone={cs.daysCompleted ? "safe" : undefined} />
-                  <MiniStat label="In a row" value={String(cs.currentStreak)} flame={cs.currentStreak > 0} />
+                  <MiniStat label="Best day" value={cs.bestDay.toLocaleString("en-US")} />
                 </dl>
-                <p className="mt-2 text-xs text-muted">
-                  Best: {cs.bestStreak} day{cs.bestStreak === 1 ? "" : "s"} in a row
-                  {!cs.challenge.archived && (cs.doneToday ? " · ✓ done today" : " · not done today yet")}
-                </p>
+                {!rotation && (
+                  <p className="mt-2 text-xs text-muted">
+                    {cs.currentStreak > 0 ? `🔥 ${cs.currentStreak} in a row · ` : ""}Best: {cs.bestStreak} day{cs.bestStreak === 1 ? "" : "s"} in a row
+                    {!cs.challenge.archived && (cs.doneToday ? " · ✓ done today" : " · not done today yet")}
+                  </p>
+                )}
               </li>
             ))}
           </ul>

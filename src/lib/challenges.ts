@@ -1,9 +1,91 @@
 // Daily challenges: who's hit today's target, streaks, and the last 7 days.
 // Pure — no React, no I/O.
-import type { Challenge, ChallengeLog, Player } from "./types.ts";
+import type { Challenge, ChallengeLog, ChallengePick, Player } from "./types.ts";
 import { addDays, localDate } from "./week.ts";
 
-export type ChallengeDay = { day: string; total: number; target: number; done: boolean };
+export type ChallengeDay = {
+  day: string;
+  total: number;
+  target: number;
+  done: boolean;
+  /** Rotation mode: which challenge that day was (or would have been). */
+  challengeId?: string;
+};
+
+// ---- Random daily challenge -------------------------------------------------
+// One challenge a day for everyone, picked at random (never yesterday's when
+// there's a choice). The database saves each day's pick (todays_challenge()),
+// so it can't change mid-day.
+
+/** Active challenges in list order. */
+export function sortedChallenges(challenges: Challenge[]): Challenge[] {
+  return challenges
+    .filter((c) => !c.archived)
+    .slice()
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+}
+
+/** The day's picked challenge, if there was one (and it still exists). */
+export function pickFor(picks: ChallengePick[], challenges: Challenge[], day: string): Challenge | null {
+  const id = picks.find((p) => p.day === day)?.challengeId;
+  return (id && challenges.find((c) => c.id === id)) || null;
+}
+
+/** A random active challenge, avoiding `avoidId` (yesterday's) when there's a choice. */
+export function randomPick(challenges: Challenge[], avoidId: string | null | undefined, rand: () => number = Math.random): Challenge | null {
+  const pool = sortedChallenges(challenges);
+  const choices = pool.length > 1 ? pool.filter((c) => c.id !== avoidId) : pool;
+  return choices.length ? choices[Math.floor(rand() * choices.length) % choices.length] : null;
+}
+
+/**
+ * Did a player finish "the daily challenge" on a day? In rotation mode that's
+ * whichever challenge they logged (normally the day's one). Today is judged
+ * against the current target; past days against the target logged then.
+ */
+function dailyDays(challenges: Challenge[], logs: ChallengeLog[], userId: string, today: string) {
+  const byId = new Map(challenges.map((c) => [c.id, c]));
+  const byDay = new Map<string, Map<string, { total: number; target: number }>>();
+  for (const l of logs) {
+    if (l.userId !== userId) continue;
+    const day = byDay.get(l.day) ?? new Map();
+    const d = day.get(l.challengeId) ?? { total: 0, target: 0 };
+    d.total += l.amount;
+    d.target = Math.max(d.target, l.target);
+    day.set(l.challengeId, d);
+    byDay.set(l.day, day);
+  }
+  return (day: string, expected?: Challenge | null): ChallengeDay => {
+    const entries = [...(byDay.get(day)?.entries() ?? [])].map(([cid, d]) => {
+      const c = byId.get(cid);
+      const target = day === today && c && !c.archived ? c.dailyTarget : d.target || c?.dailyTarget || 1;
+      return { cid, total: d.total, target, done: d.total >= target };
+    });
+    const best = entries.find((e) => e.done) ?? entries.sort((a, b) => b.total / b.target - a.total / a.target)[0];
+    if (best) return { day, total: best.total, target: best.target, done: best.done, challengeId: best.cid };
+    return { day, total: 0, target: expected?.dailyTarget ?? 0, done: false, challengeId: expected?.id };
+  };
+}
+
+/** Current and best run of consecutive days with the daily challenge done. */
+export function dailyStreaks(challenges: Challenge[], logs: ChallengeLog[], userId: string, today: string) {
+  const info = dailyDays(challenges, logs, userId, today);
+  const days = [...new Set(logs.filter((l) => l.userId === userId).map((l) => l.day))].sort();
+  let current = 0;
+  for (let d = info(today).done ? today : addDays(today, -1); days.length && d >= days[0]; d = addDays(d, -1)) {
+    if (!info(d).done) break;
+    current++;
+  }
+  let best = 0;
+  let run = 0;
+  if (days.length) {
+    for (let d = days[0]; d <= today; d = addDays(d, 1)) {
+      run = info(d).done ? run + 1 : 0;
+      best = Math.max(best, run);
+    }
+  }
+  return { current, best, doneToday: info(today).done };
+}
 
 export type PlayerChallenge = {
   player: Player;
@@ -32,9 +114,12 @@ export function computeChallenges(
   players: Player[],
   today: string,
   tz: string,
+  opts: { rotation?: boolean; picks?: ChallengePick[] } = {},
 ): ChallengeState[] {
-  return challenges
-    .filter((c) => !c.archived)
+  const picks = opts.picks ?? [];
+  const todays = pickFor(picks, challenges, today);
+  const active = opts.rotation ? [todays && !todays.archived ? todays : null].filter((c): c is Challenge => !!c) : sortedChallenges(challenges);
+  return active
     .map((challenge) => {
       const mine = logs.filter((l) => l.challengeId === challenge.id);
       const startDay = localDate(challenge.createdAt, tz);
@@ -59,9 +144,21 @@ export function computeChallenges(
 
         const t = dayInfo(today);
         let streak = 0;
-        for (let d = t.done ? today : addDays(today, -1); d >= startDay; d = addDays(d, -1)) {
-          if (!dayInfo(d).done) break;
-          streak++;
+        let last7: ChallengeDay[];
+        if (opts.rotation) {
+          // Random mode: the streak and grid follow "the day's challenge", whatever it was.
+          streak = dailyStreaks(challenges, logs, player.id, today).current;
+          const daily = dailyDays(challenges, logs, player.id, today);
+          last7 = Array.from({ length: 7 }, (_, i) => {
+            const day = addDays(today, i - 6);
+            return daily(day, pickFor(picks, challenges, day));
+          });
+        } else {
+          for (let d = t.done ? today : addDays(today, -1); d >= startDay; d = addDays(d, -1)) {
+            if (!dayInfo(d).done) break;
+            streak++;
+          }
+          last7 = Array.from({ length: 7 }, (_, i) => dayInfo(addDays(today, i - 6)));
         }
         return {
           player,
@@ -70,7 +167,7 @@ export function computeChallenges(
           done: t.done,
           remaining: Math.max(0, t.target - t.total),
           streak,
-          last7: Array.from({ length: 7 }, (_, i) => dayInfo(addDays(today, i - 6))),
+          last7,
           logsToday: (byDay.get(today)?.logs ?? []).slice().sort((a, b) => b.loggedAt.localeCompare(a.loggedAt)),
         };
       });
@@ -102,6 +199,8 @@ export type ChallengeLifetime = {
   currentStreak: number;
   bestStreak: number;
   doneToday: boolean;
+  /** Most done in a single day. */
+  bestDay: number;
 };
 
 /** One player's lifetime stats per challenge, for their profile. */
@@ -151,7 +250,8 @@ export function lifetimeStats(
         current++;
       }
 
-      return { challenge, total, daysCompleted, currentStreak: current, bestStreak: best, doneToday: done(today) };
+      const bestDay = Math.max(0, ...[...byDay.values()].map((d) => d.total));
+      return { challenge, total, daysCompleted, currentStreak: current, bestStreak: best, doneToday: done(today), bestDay };
     })
     // Active challenges, plus retired ones this player actually did.
     .filter((s) => !s.challenge.archived || s.total > 0);

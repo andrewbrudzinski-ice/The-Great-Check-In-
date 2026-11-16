@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeChallenges, lifetimeStats, quickAmounts } from "./challenges.ts";
+import { computeChallenges, dailyStreaks, lifetimeStats, pickFor, quickAmounts, randomPick } from "./challenges.ts";
 import type { Challenge, ChallengeLog, Player } from "./types.ts";
 
 const tz = "America/New_York";
 const players: Player[] = ["A", "B"].map((id) => ({ id, name: id, avatar: "x", color: "#fff", isAdmin: false, createdAt: "2026-10-01T12:00:00Z", weeklyRequirement: null, paused: false }));
-const pushups: Challenge = { id: "p", name: "Pushups", emoji: "💪", dailyTarget: 100, unit: "reps", archived: false, createdBy: null, createdAt: "2026-10-20T12:00:00Z" };
+const pushups: Challenge = { id: "p", name: "Pushups", emoji: "💪", dailyTarget: 100, unit: "reps", archived: false, createdBy: null, createdAt: "2026-10-20T12:00:00Z", sortOrder: 1 };
 let n = 0;
 const log = (userId: string, day: string, amount: number, target = 100): ChallengeLog =>
   ({ id: String(n++), challengeId: "p", userId, amount, target, day, loggedAt: `${day}T1${n % 10}:00:00Z` });
@@ -63,4 +63,67 @@ test("lifetime stats for a profile", () => {
   // retired challenges only show if the player did any
   const retired = { ...pushups, id: "r", archived: true };
   assert.equal(lifetimeStats([retired], [], "A", "2026-11-01", tz).length, 0);
+});
+
+const mk = (id: string, sortOrder: number, dailyTarget = 100, unit = "reps"): Challenge => ({
+  ...pushups, id, name: id, dailyTarget, unit, sortOrder,
+});
+const pool = [mk("Pushups", 1), mk("Sit-ups", 2), mk("Burpees", 3, 50), mk("Abs", 4, 10, "min")];
+
+test("random pick: never yesterday's when there's a choice, never a retired one", () => {
+  let seed = 7;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  let prev: string | undefined;
+  const seen = new Map<string, number>();
+  for (let i = 0; i < 400; i++) {
+    const c = randomPick(pool, prev, rand)!;
+    assert.notEqual(c.id, prev);
+    seen.set(c.id, (seen.get(c.id) ?? 0) + 1);
+    prev = c.id;
+  }
+  assert.equal(seen.size, 4); // everything comes up
+  for (const n of seen.values()) assert.ok(n > 70, `spread too uneven: ${[...seen]}`);
+  assert.equal(randomPick([pool[0]], "Pushups")?.id, "Pushups"); // only one: repeats are fine
+  assert.equal(randomPick([{ ...pool[0], archived: true }], null), null);
+  assert.equal(pickFor([{ day: "2026-11-16", challengeId: "Abs" }], pool, "2026-11-16")?.id, "Abs");
+  assert.equal(pickFor([], pool, "2026-11-16"), null);
+});
+
+test("random mode: one card for today's pick, streak across different exercises", () => {
+  const L = (cid: string, day: string, amount: number, target: number): ChallengeLog =>
+    ({ id: String(n++), challengeId: cid, userId: "A", amount, target, day, loggedAt: `${day}T12:00:00Z` });
+  const logs = [
+    L("Pushups", "2026-11-13", 100, 100), // Fri: Pushups (done)
+    L("Sit-ups", "2026-11-14", 100, 100), // Sat: Sit-ups (done)
+    L("Burpees", "2026-11-15", 30, 50), L("Burpees", "2026-11-15", 20, 50), // Sun: Burpees (done, 2 sets)
+    L("Abs", "2026-11-16", 4, 10), // Mon: Abs in progress
+  ];
+  const picks = [
+    { day: "2026-11-13", challengeId: "Pushups" },
+    { day: "2026-11-14", challengeId: "Sit-ups" },
+    { day: "2026-11-15", challengeId: "Burpees" },
+    { day: "2026-11-16", challengeId: "Abs" },
+  ];
+  const states = computeChallenges(pool, logs, players, "2026-11-16", tz, { rotation: true, picks });
+  assert.equal(states.length, 1);
+  assert.equal(states[0].challenge.id, "Abs"); // the saved pick decides
+  assert.equal(computeChallenges(pool, logs, players, "2026-11-16", tz, { rotation: true }).length, 0); // not picked yet
+  const a = states[0].players.find((p) => p.player.id === "A")!;
+  assert.equal(a.streak, 3); // Fri–Sun, each a different exercise; today still open
+  assert.deepEqual(a.last7.slice(-4).map((d) => [d.challengeId, d.done]), [["Pushups", true], ["Sit-ups", true], ["Burpees", true], ["Abs", false]]);
+  const s = dailyStreaks(pool, logs, "A", "2026-11-16");
+  assert.deepEqual([s.current, s.best, s.doneToday], [3, 3, false]);
+});
+
+test("each exercise keeps its own totals and best day", () => {
+  const L = (cid: string, day: string, amount: number): ChallengeLog =>
+    ({ id: String(n++), challengeId: cid, userId: "A", amount, target: 100, day, loggedAt: `${day}T12:00:00Z` });
+  const logs = [L("Pushups", "2026-11-01", 60), L("Pushups", "2026-11-01", 60), L("Pushups", "2026-11-05", 100), L("Sit-ups", "2026-11-02", 80)];
+  const stats = lifetimeStats(pool, logs, "A", "2026-11-06", tz);
+  const by = Object.fromEntries(stats.map((x) => [x.challenge.id, x]));
+  assert.equal(by.Pushups.total, 220);
+  assert.equal(by.Pushups.bestDay, 120);
+  assert.equal(by.Pushups.daysCompleted, 2);
+  assert.equal(by["Sit-ups"].total, 80); // sit-ups never count toward pushups
+  assert.equal(by["Sit-ups"].daysCompleted, 0);
 });
