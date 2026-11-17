@@ -46,7 +46,7 @@ npm run build      # static site in ./out
    NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
    ```
-6. **First sign-up becomes admin.** Sign up with your name and a password. Admins edit club settings. Everyone can edit their own name, avatar and color. To share the job, open Settings → Players → tap someone → **Make admin** (`set_player_admin()`). There can be any number of admins, but never zero: the last one can't step down. Existing installs: run `supabase/migrations/009_more_admins.sql` once.
+6. **First sign-up becomes the club owner.** Sign up with your name and a password. The owner controls everything: club rules, personal goals, manual check-ins, moving or removing approved gyms, other players' profiles and who's an admin. The owner can make others **admins** (Settings → Players → tap someone → *Make admin*), who get helper powers only: their own gyms are approved instantly, they can approve or turn down pending gyms, pause other players (not themselves or the owner) and delete chat messages. Everyone can edit their own name, avatar and color, and add or edit daily challenges. Existing installs: run `supabase/migrations/009_more_admins.sql` once (the existing admin becomes the owner).
 7. **Add your gyms**: stand inside each gym, open Map → *manage* (or Settings → Gyms) → **Add gym** → **Use my location**. The admin's gyms are approved right away; anyone else's need another player to approve them. If you set up the old single-gym version, re-running the schema turns that gym into the first approved gym.
 
 ## Deploy to Netlify
@@ -74,7 +74,7 @@ The browser never decides whether a check-in counts. Tapping **CHECK IN** reads 
 - enforces the cooldown (default 4 h) under a per-player advisory lock, so double taps can't sneak through.
 - stamps `checked_in_at` with the **database clock**.
 
-Row-level security lets players read everything but write **no** check-ins directly. There is no insert policy, so the function is the only way in. Players can't promote themselves to admin either (column-level grants).
+Row-level security lets players read everything but write **no** check-ins directly. There is no insert policy, so the function is the only way in. Players can't make themselves admin or owner either (column-level grants), and the database allows only one owner.
 
 Gyms change only through `add_gym`, `approve_gym`, `update_gym` and `archive_gym`. Nobody can approve a gym they added. Once a gym is approved, only the admin can move it, so nobody can drag it over to their couch. Removed gyms are archived, so past check-ins still count.
 

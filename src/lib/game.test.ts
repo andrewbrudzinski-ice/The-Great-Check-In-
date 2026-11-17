@@ -25,7 +25,7 @@ test("status thresholds", () => {
 });
 
 const players: Player[] = ["A", "B", "C"].map((n, i) => ({
-  id: n, name: n, avatar: "💪", color: "#fff", isAdmin: i === 0, createdAt: "2026-09-14T12:00:00Z", weeklyRequirement: null, paused: false,
+  id: n, name: n, avatar: "💪", color: "#fff", isAdmin: i === 0, isOwner: i === 0, createdAt: "2026-09-14T12:00:00Z", weeklyRequirement: null, paused: false,
 }));
 
 function ci(userId: string, date: string, hour = 12): CheckIn {
@@ -110,7 +110,7 @@ test("nobody is singled out in a full tie", () => {
 
 test("joining mid-week is a warm-up", () => {
   const d = data([ci("A", "2026-10-05")]);
-  d.players = [...players, { id: "D", name: "D", avatar: "x", color: "#fff", isAdmin: false, createdAt: "2026-09-24T12:00:00Z", weeklyRequirement: null, paused: false }];
+  d.players = [...players, { id: "D", name: "D", avatar: "x", color: "#fff", isAdmin: false, isOwner: false, createdAt: "2026-09-24T12:00:00Z", weeklyRequirement: null, paused: false }];
   const g = computeGame(d, new Date("2026-10-06T15:00:00Z"));
   const w21 = g.history.find((h) => h.weekStart === "2026-09-21")!;
   assert.equal(w21.rows.some((r) => r.player.id === "D"), false); // joined Thursday

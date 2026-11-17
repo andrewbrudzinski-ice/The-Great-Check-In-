@@ -20,6 +20,8 @@ const toPlayer = (r: Row): Player => ({
   avatar: r.avatar,
   color: r.color,
   isAdmin: r.is_admin,
+  // Before migration 009 there was no owner column: the admin was in charge.
+  isOwner: r.is_owner ?? r.is_admin,
   createdAt: r.created_at,
   weeklyRequirement: r.weekly_requirement ?? null,
   paused: !!r.paused,
@@ -81,7 +83,7 @@ const toGym = (r: Row): Gym => ({
 });
 
 const ADMIN_CHECK_IN_ERRORS: Record<string, string> = {
-  forbidden: "Only an admin can add check-ins for someone else.",
+  forbidden: "Only the club owner can add or remove check-ins for someone.",
   no_player: "That player doesn't exist.",
   no_gym: "Pick an approved gym.",
   future: "That time is in the future.",
@@ -92,7 +94,7 @@ const ADMIN_CHECK_IN_ERRORS: Record<string, string> = {
 
 const GYM_ERRORS: Record<string, string> = {
   own_gym: "Someone else has to approve a gym you added.",
-  forbidden: "Only an admin (or whoever added a still-pending gym) can do that.",
+  forbidden: "Only the club owner can change an approved gym. Admins and whoever added it can handle pending ones.",
   not_found: "That gym doesn't exist anymore.",
   too_many: "That's a lot of gyms. Archive some first.",
   not_authenticated: "Sign in first.",
@@ -450,17 +452,17 @@ export function createSupabaseBackend(): Backend {
       const { data, error } = await sb.rpc("set_player_admin", { p_user: id, p_admin: admin });
       if (error) {
         if (/could not find the function/i.test(error.message))
-          throw new Error("Multiple admins aren't set up in the database yet. Run supabase/migrations/009_more_admins.sql.");
+          throw new Error("Admins aren't set up in the database yet. Run supabase/migrations/009_more_admins.sql.");
         throw new Error(error.message);
       }
       const code = (data as Row)?.code;
       if (!(data as Row)?.ok)
         throw new Error(
-          code === "last_admin"
-            ? "The club needs at least one admin. Make someone else admin first."
+          code === "owner"
+            ? "The club owner is always an admin."
             : code === "not_found"
               ? "That player doesn't exist."
-              : "Only an admin can change who's admin.",
+              : "Only the club owner can change who's admin.",
         );
     },
 
@@ -471,7 +473,8 @@ export function createSupabaseBackend(): Backend {
           throw new Error("Pausing isn't set up in the database yet. Run supabase/migrations/007_pause_players.sql.");
         throw new Error(error.message);
       }
-      if (!(data as Row)?.ok) throw new Error("Only an admin can pause a player.");
+      if (!(data as Row)?.ok)
+        throw new Error((data as Row)?.code === "not_allowed" ? "Admins can't pause themselves or the club owner." : "Only an admin can pause a player.");
     },
 
     async setPlayerRequirement(id, requirement) {
@@ -482,7 +485,7 @@ export function createSupabaseBackend(): Backend {
         throw new Error(error.message);
       }
       const r = data as Row;
-      if (!r?.ok) throw new Error(r?.code === "forbidden" ? "Only an admin can change someone's goal." : "Pick a goal between 1 and 14.");
+      if (!r?.ok) throw new Error(r?.code === "forbidden" ? "Only the club owner can change someone's goal." : "Pick a goal between 1 and 14.");
     },
 
     async adminCheckIn({ userId, gymId, at, note }) {

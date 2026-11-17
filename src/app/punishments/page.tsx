@@ -87,7 +87,7 @@ export default function PunishmentsPage() {
 
       {/* The deal */}
       <section className="mt-8">
-        <SectionTitle right={me?.isAdmin ? <Link href="/settings" className="text-[11px] font-semibold text-muted hover:text-ink">Edit</Link> : undefined}>
+        <SectionTitle right={me?.isOwner ? <Link href="/settings" className="text-[11px] font-semibold text-muted hover:text-ink">Edit</Link> : undefined}>
           The deal
         </SectionTitle>
         <p className="font-display text-2xl leading-tight font-extrabold">“{s.punishment}”</p>

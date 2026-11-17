@@ -11,7 +11,7 @@ import type { AppData, Challenge, ChallengeLog, ChallengePick, ChatMessage, Mess
 import { addDays, localDate, midnightIn, weekKey, weekStartOf } from "../week";
 import type { Backend, GymInput, Session } from "./types";
 
-const KEY = "tgci-demo-v14";
+const KEY = "tgci-demo-v15";
 const SESSION_KEY = "tgci-demo-session";
 
 type DemoDB = AppData;
@@ -59,9 +59,9 @@ function seed(): DemoDB {
   const created = midnightIn(firstWeek, tz).toISOString();
 
   const players: Player[] = [
-    { id: "p-andrew", name: "Andrew", avatar: "🦍", color: PLAYER_COLORS[0], isAdmin: true, createdAt: created, weeklyRequirement: null, paused: false },
-    { id: "p-mike", name: "Mike", avatar: "🦈", color: PLAYER_COLORS[1], isAdmin: false, createdAt: created, weeklyRequirement: null, paused: false },
-    { id: "p-john", name: "John", avatar: "🐻", color: PLAYER_COLORS[2], isAdmin: false, createdAt: created, weeklyRequirement: null, paused: false },
+    { id: "p-andrew", name: "Andrew", avatar: "🦍", color: PLAYER_COLORS[0], isAdmin: true, isOwner: true, createdAt: created, weeklyRequirement: null, paused: false },
+    { id: "p-mike", name: "Mike", avatar: "🦈", color: PLAYER_COLORS[1], isAdmin: false, isOwner: false, createdAt: created, weeklyRequirement: null, paused: false },
+    { id: "p-john", name: "John", avatar: "🐻", color: PLAYER_COLORS[2], isAdmin: false, isOwner: false, createdAt: created, weeklyRequirement: null, paused: false },
   ];
   const gym = (id: string, name: string, latitude: number, longitude: number, radiusM: number, createdBy: string, status: Gym["status"] = "approved"): Gym => ({
     id, name, latitude, longitude, radiusM, status, createdBy,
@@ -310,6 +310,8 @@ export function createDemoBackend(): Backend {
       return null;
     }
   };
+  /** The signed-in player. */
+  const who = (db: DemoDB) => db.players.find((p) => p.id === currentSession()?.userId) ?? null;
   const emit = () => listeners.forEach((l) => l(currentSession()));
 
   return {
@@ -379,6 +381,7 @@ export function createDemoBackend(): Backend {
     },
     async updateSettings(patch) {
       const db = read();
+      if (!who(db)?.isOwner) throw new Error("Only the club owner can change these settings.");
       db.settings = { ...db.settings, ...patch };
       write(db);
     },
@@ -418,9 +421,9 @@ export function createDemoBackend(): Backend {
       const db = read();
       const g = db.gyms.find((x) => x.id === id && !x.archived);
       if (!session || !g) throw new Error("That gym doesn't exist anymore.");
-      const admin = db.players.find((p) => p.id === session.userId)?.isAdmin;
-      if (!admin && !(g.createdBy === session.userId && g.status === "pending"))
-        throw new Error("Only an admin (or whoever added a still-pending gym) can do that.");
+      const me = who(db);
+      if (!me?.isOwner && !(g.status === "pending" && (me?.isAdmin || g.createdBy === session.userId)))
+        throw new Error("Only the club owner can change an approved gym. Admins and whoever added it can handle pending ones.");
       Object.assign(g, { name: input.name.trim(), latitude: input.latitude, longitude: input.longitude, radiusM: input.radiusM });
       write(db);
     },
@@ -429,26 +432,27 @@ export function createDemoBackend(): Backend {
       const db = read();
       const g = db.gyms.find((x) => x.id === id && !x.archived);
       if (!session || !g) throw new Error("That gym doesn't exist anymore.");
-      const admin = db.players.find((p) => p.id === session.userId)?.isAdmin;
-      if (!admin && g.createdBy !== session.userId) throw new Error("Only an admin or whoever added it can remove a gym.");
+      const me = who(db);
+      if (!me?.isOwner && g.createdBy !== session.userId && !(me?.isAdmin && g.status === "pending"))
+        throw new Error("Only the club owner can remove an approved gym someone else added.");
       g.archived = true;
       write(db);
     },
     async setPlayerAdmin(id, admin) {
-      const session = currentSession();
       const db = read();
-      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin) throw new Error("Only an admin can change who's admin.");
+      if (!who(db)?.isOwner) throw new Error("Only the club owner can change who's admin.");
       const p = db.players.find((x) => x.id === id);
       if (!p) throw new Error("That player doesn't exist.");
-      if (!admin && !db.players.some((x) => x.isAdmin && x.id !== id))
-        throw new Error("The club needs at least one admin. Make someone else admin first.");
+      if (p.isOwner) throw new Error("The club owner is always an admin.");
       p.isAdmin = admin;
       write(db);
     },
     async setPlayerPaused(id, paused) {
       const session = currentSession();
       const db = read();
-      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin) throw new Error("Only an admin can pause a player.");
+      const me = who(db);
+      if (!session || !me?.isAdmin) throw new Error("Only an admin can pause a player.");
+      if (!me.isOwner && (id === me.id || db.players.find((x) => x.id === id)?.isOwner)) throw new Error("Admins can't pause themselves or the club owner.");
       const p = db.players.find((x) => x.id === id);
       if (!p) throw new Error("That player doesn't exist.");
       p.paused = paused;
@@ -457,7 +461,7 @@ export function createDemoBackend(): Backend {
     async setPlayerRequirement(id, requirement) {
       const session = currentSession();
       const db = read();
-      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin) throw new Error("Only an admin can change someone's goal.");
+      if (!session || !who(db)?.isOwner) throw new Error("Only the club owner can change someone's goal.");
       if (requirement != null && (requirement < 1 || requirement > 14)) throw new Error("Pick a goal between 1 and 14.");
       const p = db.players.find((x) => x.id === id);
       if (!p) throw new Error("That player doesn't exist.");
@@ -467,8 +471,7 @@ export function createDemoBackend(): Backend {
     async adminCheckIn({ userId, gymId, at, note }) {
       const session = currentSession();
       const db = read();
-      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin)
-        throw new Error("Only an admin can add check-ins for someone else.");
+      if (!session || !who(db)?.isOwner) throw new Error("Only the club owner can add or remove check-ins for someone.");
       const g = db.gyms.find((x) => x.id === gymId && x.status === "approved" && !x.archived);
       if (!g) throw new Error("Pick an approved gym.");
       const t = new Date(at).getTime();
@@ -499,7 +502,7 @@ export function createDemoBackend(): Backend {
     async adminRemoveCheckIn(id) {
       const session = currentSession();
       const db = read();
-      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin) throw new Error("Only an admin can do that.");
+      if (!session || !who(db)?.isOwner) throw new Error("Only the club owner can add or remove check-ins for someone.");
       const c = db.checkIns.find((x) => x.id === id && x.manual);
       if (!c) throw new Error("That check-in is already gone (only manual ones can be removed).");
       db.checkIns = db.checkIns.filter((x) => x !== c);
@@ -658,6 +661,8 @@ export function createDemoBackend(): Backend {
     },
     async updatePlayer(id, patch) {
       const db = read();
+      const me = who(db);
+      if (!me || (me.id !== id && !me.isOwner)) throw new Error("You can only edit your own profile.");
       db.players = db.players.map((p) => (p.id === id ? { ...p, ...patch } : p));
       write(db);
     },
