@@ -35,7 +35,7 @@ export default function SettingsPage() {
         <p className="eyebrow mb-1.5">Club admin</p>
         <h1 className="font-display text-[34px] leading-[0.95] font-black">Settings</h1>
         {!isAdmin && (
-          <p className="mt-2 text-sm text-muted">You can edit your own profile. Club rules are locked to the admin.</p>
+          <p className="mt-2 text-sm text-muted">You can edit your own profile. Club rules are locked to admins.</p>
         )}
       </header>
 
@@ -190,6 +190,7 @@ function PlayerEditor({
         {player.isAdmin && <span className="rounded bg-surface-3 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-muted">ADMIN</span>}
         <span className="text-xs text-muted">{canEdit || canSetGoal ? (open ? "Close" : "Edit") : ""}</span>
       </button>
+      {open && canSetGoal && <AdminToggle player={player} />}
       {open && canSetGoal && <PauseToggle player={player} />}
       {open && canSetGoal && <WeeklyGoal player={player} clubGoal={clubGoal} />}
       {open && canEdit && (
@@ -236,6 +237,57 @@ function PlayerEditor({
           <SaveRow state={state} disabled={!dirty || !name.trim()} onSave={() => run(() => updatePlayer(player.id, { name: name.trim(), avatar, color }))} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** Admin-only: share admin with someone, or step down (the club always keeps one). */
+function AdminToggle({ player }: { player: Player }) {
+  const { data, me, setPlayerAdmin } = useGame();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const on = player.isAdmin;
+  const isMe = player.id === me?.id;
+  const onlyAdmin = on && !data.players.some((p) => p.isAdmin && p.id !== player.id);
+
+  async function toggle() {
+    if (on && isMe && !confirm("Step down as admin? You won't be able to change club settings anymore.")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await setPlayerAdmin(player.id, !on);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="border-t border-line p-3">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">{isMe ? (on ? "You're an admin" : "Admin") : on ? `${player.name} is an admin` : `Make ${player.name} an admin`}</p>
+          <p className="text-xs text-muted">
+            {onlyAdmin
+              ? "The only admin. Make someone else admin before stepping down."
+              : on
+                ? "Can change club rules, goals, pauses, gyms and check people in."
+                : "Same powers as you: club rules, goals, pauses, gyms and manual check-ins."}
+          </p>
+        </div>
+        <button
+          role="switch"
+          aria-checked={on}
+          aria-label={`Admin: ${player.name}`}
+          onClick={toggle}
+          disabled={busy || onlyAdmin}
+          className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${on ? "bg-volt" : "bg-surface-3"}`}
+        >
+          <span className={`absolute top-0.5 left-0 h-6 w-6 rounded-full bg-white shadow transition-transform ${on ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+        </button>
+      </div>
+      {error && <p className="mt-2 text-xs text-problem">{error}</p>}
     </div>
   );
 }

@@ -63,7 +63,7 @@ export default function GymsPage() {
       )}
       <p className="mt-3 text-[11px] leading-relaxed text-muted">
         A check-in counts at any approved gym. When you tap Check In, the server picks the nearest gym you&apos;re inside.
-        Gyms added by anyone other than the admin need <b className="text-ink-2">another player&apos;s approval</b>, so nobody can
+        Gyms added by anyone who isn&apos;t an admin need <b className="text-ink-2">another player&apos;s approval</b>, so nobody can
         register their living room.
       </p>
       {error && <p className="mt-3 text-sm text-problem">{error}</p>}

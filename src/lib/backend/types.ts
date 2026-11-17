@@ -28,6 +28,8 @@ export interface Backend {
   archiveGym(id: string): Promise<void>;
   /** Admin: pause/unpause a player (paused weeks don't count). */
   setPlayerPaused(id: string, paused: boolean): Promise<void>;
+  /** Admin: make a player an admin or take it away (the club always keeps one). */
+  setPlayerAdmin(id: string, admin: boolean): Promise<void>;
   /** Admin: set one player's weekly goal (null = club default). */
   setPlayerRequirement(id: string, requirement: number | null): Promise<void>;
   /** Admin: check a player in who forgot (optionally backdated, max 14 days). */

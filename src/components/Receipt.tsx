@@ -66,7 +66,7 @@ export function Receipt({
 
       {manual && (
         <p className="mt-4 text-sm text-ink-2">
-          Checked in at <b className="text-ink">{checkIn.gymName}</b> by the admin because {player.name} forgot to tap the button.
+          Checked in at <b className="text-ink">{checkIn.gymName}</b> by an admin because {player.name} forgot to tap the button.
           {checkIn.note && <span className="mt-1 block text-muted">“{checkIn.note}”</span>}
         </p>
       )}

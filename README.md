@@ -46,7 +46,7 @@ npm run build      # static site in ./out
    NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
    ```
-6. **First sign-up becomes admin.** Sign up with your name and a password. The admin edits club settings. Everyone can edit their own name, avatar and color.
+6. **First sign-up becomes admin.** Sign up with your name and a password. Admins edit club settings. Everyone can edit their own name, avatar and color. To share the job, open Settings → Players → tap someone → **Make admin** (`set_player_admin()`). There can be any number of admins, but never zero: the last one can't step down. Existing installs: run `supabase/migrations/009_more_admins.sql` once.
 7. **Add your gyms**: stand inside each gym, open Map → *manage* (or Settings → Gyms) → **Add gym** → **Use my location**. The admin's gyms are approved right away; anyone else's need another player to approve them. If you set up the old single-gym version, re-running the schema turns that gym into the first approved gym.
 
 ## Deploy to Netlify

@@ -420,7 +420,7 @@ export function createDemoBackend(): Backend {
       if (!session || !g) throw new Error("That gym doesn't exist anymore.");
       const admin = db.players.find((p) => p.id === session.userId)?.isAdmin;
       if (!admin && !(g.createdBy === session.userId && g.status === "pending"))
-        throw new Error("Only the admin (or whoever added a still-pending gym) can do that.");
+        throw new Error("Only an admin (or whoever added a still-pending gym) can do that.");
       Object.assign(g, { name: input.name.trim(), latitude: input.latitude, longitude: input.longitude, radiusM: input.radiusM });
       write(db);
     },
@@ -430,14 +430,25 @@ export function createDemoBackend(): Backend {
       const g = db.gyms.find((x) => x.id === id && !x.archived);
       if (!session || !g) throw new Error("That gym doesn't exist anymore.");
       const admin = db.players.find((p) => p.id === session.userId)?.isAdmin;
-      if (!admin && g.createdBy !== session.userId) throw new Error("Only the admin or whoever added it can remove a gym.");
+      if (!admin && g.createdBy !== session.userId) throw new Error("Only an admin or whoever added it can remove a gym.");
       g.archived = true;
+      write(db);
+    },
+    async setPlayerAdmin(id, admin) {
+      const session = currentSession();
+      const db = read();
+      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin) throw new Error("Only an admin can change who's admin.");
+      const p = db.players.find((x) => x.id === id);
+      if (!p) throw new Error("That player doesn't exist.");
+      if (!admin && !db.players.some((x) => x.isAdmin && x.id !== id))
+        throw new Error("The club needs at least one admin. Make someone else admin first.");
+      p.isAdmin = admin;
       write(db);
     },
     async setPlayerPaused(id, paused) {
       const session = currentSession();
       const db = read();
-      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin) throw new Error("Only the admin can pause a player.");
+      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin) throw new Error("Only an admin can pause a player.");
       const p = db.players.find((x) => x.id === id);
       if (!p) throw new Error("That player doesn't exist.");
       p.paused = paused;
@@ -446,7 +457,7 @@ export function createDemoBackend(): Backend {
     async setPlayerRequirement(id, requirement) {
       const session = currentSession();
       const db = read();
-      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin) throw new Error("Only the admin can change someone's goal.");
+      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin) throw new Error("Only an admin can change someone's goal.");
       if (requirement != null && (requirement < 1 || requirement > 14)) throw new Error("Pick a goal between 1 and 14.");
       const p = db.players.find((x) => x.id === id);
       if (!p) throw new Error("That player doesn't exist.");
@@ -457,7 +468,7 @@ export function createDemoBackend(): Backend {
       const session = currentSession();
       const db = read();
       if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin)
-        throw new Error("Only the admin can add check-ins for someone else.");
+        throw new Error("Only an admin can add check-ins for someone else.");
       const g = db.gyms.find((x) => x.id === gymId && x.status === "approved" && !x.archived);
       if (!g) throw new Error("Pick an approved gym.");
       const t = new Date(at).getTime();
@@ -488,7 +499,7 @@ export function createDemoBackend(): Backend {
     async adminRemoveCheckIn(id) {
       const session = currentSession();
       const db = read();
-      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin) throw new Error("Only the admin can do that.");
+      if (!session || !db.players.find((p) => p.id === session.userId)?.isAdmin) throw new Error("Only an admin can do that.");
       const c = db.checkIns.find((x) => x.id === id && x.manual);
       if (!c) throw new Error("That check-in is already gone (only manual ones can be removed).");
       db.checkIns = db.checkIns.filter((x) => x !== c);
