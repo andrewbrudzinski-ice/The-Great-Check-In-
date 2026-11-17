@@ -51,6 +51,15 @@ alter table public.users add column if not exists weekly_requirement int
 -- weeks are recorded as exempt and never trigger the group punishment.
 alter table public.users add column if not exists paused boolean not null default false;
 
+-- The club owner: one person with full control. Admins are helpers with a
+-- smaller set of powers (approving gyms, pausing others, tidying the chat).
+alter table public.users add column if not exists is_owner boolean not null default false;
+create unique index if not exists users_one_owner on public.users ((true)) where is_owner;
+-- Existing clubs: the longest-standing admin (else the first player) is the owner.
+update public.users set is_owner = true, is_admin = true
+ where id = (select id from public.users order by is_admin desc, created_at, id limit 1)
+   and not exists (select 1 from public.users where is_owner);
+
 -- ----------------------------------------------------------------------------
 -- Settings (single row)
 -- ----------------------------------------------------------------------------
@@ -171,6 +180,11 @@ language sql stable security definer set search_path = public as $$
   select coalesce((select is_admin from public.users where id = auth.uid()), false);
 $$;
 
+create or replace function public.is_owner() returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select is_owner from public.users where id = auth.uid()), false);
+$$;
+
 create or replace function public.is_player() returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.users where id = auth.uid());
@@ -181,12 +195,13 @@ create policy "players read users" on public.users
   for select to authenticated using (public.is_player());
 
 drop policy if exists "edit self or admin" on public.users;
-create policy "edit self or admin" on public.users
+drop policy if exists "edit self or owner" on public.users;
+create policy "edit self or owner" on public.users
   for update to authenticated
-  using (id = auth.uid() or public.is_admin())
-  with check (id = auth.uid() or public.is_admin());
+  using (id = auth.uid() or public.is_owner())
+  with check (id = auth.uid() or public.is_owner());
 
--- Only these columns are editable from the client (is_admin is not).
+-- Only these columns are editable from the client (is_admin/is_owner are not).
 revoke update on public.users from authenticated;
 grant update (name, avatar, color) on public.users to authenticated;
 
@@ -195,8 +210,9 @@ create policy "players read settings" on public.settings
   for select to authenticated using (public.is_player());
 
 drop policy if exists "admins edit settings" on public.settings;
-create policy "admins edit settings" on public.settings
-  for update to authenticated using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "owner edits settings" on public.settings;
+create policy "owner edits settings" on public.settings
+  for update to authenticated using (public.is_owner()) with check (public.is_owner());
 
 drop policy if exists "players read check-ins" on public.check_ins;
 create policy "players read check-ins" on public.check_ins
@@ -238,13 +254,14 @@ begin
   end if;
 
   select count(*) into n from public.users;
-  insert into public.users (id, name, avatar, color, is_admin)
+  insert into public.users (id, name, avatar, color, is_admin, is_owner)
   values (
     new.id,
     left(coalesce(nullif(trim(new.raw_user_meta_data ->> 'name'), ''), split_part(new.email, '@', 1)), 40),
     coalesce(nullif(new.raw_user_meta_data ->> 'avatar', ''), '💪'),
     palette[(n % array_length(palette, 1)) + 1],
-    n = 0                                   -- first player in becomes admin
+    n = 0,                                  -- first player in is the owner (and an admin)
+    n = 0
   );
   return new;
 end $$;
@@ -462,7 +479,8 @@ declare
 begin
   select * into g from public.gyms where id = p_gym and not archived;
   if g.id is null then return json_build_object('ok', false, 'code', 'not_found'); end if;
-  if not (public.is_admin() or (g.created_by = uid and g.status = 'pending')) then
+  -- Pending gyms: their creator or an admin. Approved gyms: only the owner can move them.
+  if not (public.is_owner() or (g.status = 'pending' and (public.is_admin() or g.created_by = uid))) then
     return json_build_object('ok', false, 'code', 'forbidden');
   end if;
   update public.gyms
@@ -480,7 +498,8 @@ declare
 begin
   select * into g from public.gyms where id = p_gym and not archived;
   if g.id is null then return json_build_object('ok', false, 'code', 'not_found'); end if;
-  if not (public.is_admin() or g.created_by = uid) then
+  -- Owner: any. Admin: pending ones (turn down a bad request). Anyone: their own.
+  if not (public.is_owner() or g.created_by = uid or (public.is_admin() and g.status = 'pending')) then
     return json_build_object('ok', false, 'code', 'forbidden');
   end if;
   update public.gyms set archived = true where id = p_gym;
@@ -503,7 +522,7 @@ grant execute on function public.archive_gym(uuid) to authenticated;
 create or replace function public.set_player_requirement(p_user uuid, p_requirement int)
 returns json language plpgsql security definer set search_path = public as $$
 begin
-  if not public.is_admin() then
+  if not public.is_owner() then
     return json_build_object('ok', false, 'code', 'forbidden');
   end if;
   if p_requirement is not null and p_requirement not between 1 and 14 then
@@ -526,12 +545,36 @@ begin
   if not public.is_admin() then
     return json_build_object('ok', false, 'code', 'forbidden');
   end if;
+  -- Admins can't pause themselves (no dodging a punishment) or the owner.
+  if not public.is_owner()
+     and (p_user = auth.uid() or exists (select 1 from public.users where id = p_user and is_owner)) then
+    return json_build_object('ok', false, 'code', 'not_allowed');
+  end if;
   update public.users set paused = coalesce(p_paused, false) where id = p_user;
   if not found then return json_build_object('ok', false, 'code', 'not_found'); end if;
   return json_build_object('ok', true);
 end $$;
 revoke all on function public.set_player_paused(uuid, boolean) from public, anon;
 grant execute on function public.set_player_paused(uuid, boolean) to authenticated;
+
+-- Owner: make someone an admin, or take it away. The owner is always an admin.
+create or replace function public.set_player_admin(p_user uuid, p_admin boolean)
+returns json language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_owner() then
+    return json_build_object('ok', false, 'code', 'forbidden');
+  end if;
+  if not exists (select 1 from public.users where id = p_user) then
+    return json_build_object('ok', false, 'code', 'not_found');
+  end if;
+  if exists (select 1 from public.users where id = p_user and is_owner) then
+    return json_build_object('ok', false, 'code', 'owner');
+  end if;
+  update public.users set is_admin = coalesce(p_admin, false) where id = p_user;
+  return json_build_object('ok', true);
+end $$;
+revoke all on function public.set_player_admin(uuid, boolean) from public, anon;
+grant execute on function public.set_player_admin(uuid, boolean) to authenticated;
 
 -- ----------------------------------------------------------------------------
 -- Admin manual check-ins (for when someone forgot to tap the button)
@@ -584,7 +627,7 @@ declare
   clash timestamptz;
   rec   public.check_ins;
 begin
-  if not public.is_admin() then
+  if not public.is_owner() then
     return json_build_object('ok', false, 'code', 'forbidden');
   end if;
   if not exists (select 1 from public.users where id = p_user) then
@@ -632,7 +675,7 @@ declare
   s   public.settings;
   rec public.check_ins;
 begin
-  if not public.is_admin() then
+  if not public.is_owner() then
     return json_build_object('ok', false, 'code', 'forbidden');
   end if;
   delete from public.check_ins where id = p_check_in and manual returning * into rec;

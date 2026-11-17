@@ -185,7 +185,7 @@ function ModeSwitch() {
   const { data, me, updateSettings } = useGame();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (!me?.isAdmin) return null;
+  if (!me?.isOwner) return null;
   const rotation = data.settings.challengeRotation;
 
   async function set(next: boolean) {
@@ -205,7 +205,7 @@ function ModeSwitch() {
     `flex-1 rounded-full py-2 text-sm font-bold transition-colors ${on ? "bg-volt text-volt-ink" : "text-muted hover:text-ink"}`;
   return (
     <section>
-      <SectionTitle>How challenges run · admin</SectionTitle>
+      <SectionTitle>How challenges run · owner</SectionTitle>
       <div className="flex rounded-full border border-line bg-surface p-1" role="radiogroup" aria-label="Challenge mode">
         <button role="radio" aria-checked={rotation} disabled={busy} onClick={() => set(true)} className={opt(rotation)}>
           Random daily

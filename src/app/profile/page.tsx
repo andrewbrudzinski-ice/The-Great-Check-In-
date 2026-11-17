@@ -288,7 +288,7 @@ function Profile() {
                   <span>
                     {c.gymName}
                     {c.distanceM != null && <span className="text-xs text-muted"> · ✓ {formatDistance(c.distanceM)} from gym</span>}
-                    {c.manual && <span className="text-xs text-one"> · ✍️ added by admin</span>}
+                    {c.manual && <span className="text-xs text-one"> · ✍️ added by the owner</span>}
                   </span>
                   <span className="tabular text-xs text-muted">{formatDateTime(c.checkedInAt, tz)} 📍</span>
                 </Link>

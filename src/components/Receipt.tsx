@@ -49,7 +49,7 @@ export function Receipt({
           <p className="font-display text-lg leading-tight font-extrabold">{player.name}</p>
           {manual ? (
             <p className="font-display text-[10px] font-black tracking-[0.12em] text-one">
-              ✍️ ADDED BY {(addedByName ?? "THE ADMIN").toUpperCase()} · NO GPS
+              ✍️ ADDED BY {(addedByName ?? "THE OWNER").toUpperCase()} · NO GPS
             </p>
           ) : (
             <p className="inline-flex items-center gap-1 font-display text-[10px] font-black tracking-[0.12em] text-safe">
@@ -66,7 +66,7 @@ export function Receipt({
 
       {manual && (
         <p className="mt-4 text-sm text-ink-2">
-          Checked in at <b className="text-ink">{checkIn.gymName}</b> by the admin because {player.name} forgot to tap the button.
+          Checked in at <b className="text-ink">{checkIn.gymName}</b> by the club owner because {player.name} forgot to tap the button.
           {checkIn.note && <span className="mt-1 block text-muted">“{checkIn.note}”</span>}
         </p>
       )}

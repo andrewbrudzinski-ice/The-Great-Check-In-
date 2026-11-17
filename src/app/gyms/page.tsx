@@ -31,6 +31,7 @@ export default function GymsPage() {
   const player = (id: string | null) => data.players.find((p) => p.id === id);
   const visits = (id: string) => data.checkIns.filter((c) => c.gymId === id).length;
   const isAdmin = !!me?.isAdmin;
+  const isOwner = !!me?.isOwner;
 
   async function act(fn: () => Promise<void>) {
     setError(null);
@@ -63,7 +64,7 @@ export default function GymsPage() {
       )}
       <p className="mt-3 text-[11px] leading-relaxed text-muted">
         A check-in counts at any approved gym. When you tap Check In, the server picks the nearest gym you&apos;re inside.
-        Gyms added by anyone other than the admin need <b className="text-ink-2">another player&apos;s approval</b>, so nobody can
+        Gyms added by anyone who isn&apos;t an admin need <b className="text-ink-2">another player&apos;s approval</b>, so nobody can
         register their living room.
       </p>
       {error && <p className="mt-3 text-sm text-problem">{error}</p>}
@@ -133,7 +134,7 @@ export default function GymsPage() {
           <ul className="divide-y divide-line">
             {approved.map((g) => {
               const by = player(g.createdBy);
-              const canRemove = isAdmin || g.createdBy === me?.id;
+              const canRemove = isOwner || g.createdBy === me?.id;
               return (
                 <motion.li key={g.id} layout className="flex items-center gap-3 py-3">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-volt/12 text-volt">
@@ -146,7 +147,7 @@ export default function GymsPage() {
                       {by && ` · added by ${by.name}`}
                     </p>
                   </button>
-                  {isAdmin && (
+                  {isOwner && (
                     <button onClick={() => setEditing(g)} className="text-xs font-semibold text-muted hover:text-ink">
                       Edit
                     </button>

@@ -22,7 +22,8 @@ const field =
 export default function SettingsPage() {
   const { data, me, mode, signOut, session } = useGame();
   const signInName = handleFromEmail(session?.email);
-  const isAdmin = !!me?.isAdmin || mode === "demo";
+  const isOwner = !!me?.isOwner;
+  const isAdmin = !!me?.isAdmin;
   const players = data.players;
   const pendingCount = data.gyms.filter((g) => !g.archived && g.status === "pending").length;
 
@@ -32,10 +33,14 @@ export default function SettingsPage() {
         <ChevronLeft size={16} /> Back
       </Link>
       <header className="mb-8">
-        <p className="eyebrow mb-1.5">Club admin</p>
+        <p className="eyebrow mb-1.5">{isOwner ? "Club owner" : isAdmin ? "Club admin" : "Club"}</p>
         <h1 className="font-display text-[34px] leading-[0.95] font-black">Settings</h1>
-        {!isAdmin && (
-          <p className="mt-2 text-sm text-muted">You can edit your own profile. Club rules are locked to the admin.</p>
+        {!isOwner && (
+          <p className="mt-2 text-sm text-muted">
+            {isAdmin
+              ? "You're an admin: you can approve gyms, pause other players and tidy the chat. Club rules belong to the owner."
+              : "You can edit your own profile. Club rules belong to the club owner."}
+          </p>
         )}
       </header>
 
@@ -50,7 +55,7 @@ export default function SettingsPage() {
         <InstallRow />
       </section>
 
-      {me?.isAdmin && (
+      {isOwner && (
         <section className="mb-10">
           <SectionTitle>Check someone in</SectionTitle>
           <AdminCheckIn />
@@ -61,7 +66,14 @@ export default function SettingsPage() {
         <SectionTitle>Players</SectionTitle>
         <div className="space-y-3">
           {players.map((p) => (
-            <PlayerEditor key={p.id} player={p} canEdit={isAdmin || p.id === me?.id} canSetGoal={!!me?.isAdmin} clubGoal={data.settings.weeklyRequirement} />
+            <PlayerEditor
+              key={p.id}
+              player={p}
+              canEdit={isOwner || p.id === me?.id}
+              isOwner={isOwner}
+              canPause={isOwner || (isAdmin && p.id !== me?.id && !p.isOwner)}
+              clubGoal={data.settings.weeklyRequirement}
+            />
           ))}
         </div>
       </section>
@@ -90,8 +102,8 @@ export default function SettingsPage() {
           <span className="text-sm text-muted">Manage →</span>
         </Link>
       </section>
-      <RulesSection settings={data.settings} disabled={!isAdmin} />
-      <AppSection settings={data.settings} disabled={!isAdmin} />
+      <RulesSection settings={data.settings} disabled={!isOwner} />
+      <AppSection settings={data.settings} disabled={!isOwner} />
 
       <section className="mt-12 space-y-2">
         {mode === "demo" && (
@@ -162,12 +174,15 @@ function Label({ children, hint }: { children: ReactNode; hint?: ReactNode }) {
 function PlayerEditor({
   player,
   canEdit,
-  canSetGoal,
+  isOwner,
+  canPause,
   clubGoal,
 }: {
   player: Player;
   canEdit: boolean;
-  canSetGoal: boolean;
+  /** The viewer is the club owner. */
+  isOwner: boolean;
+  canPause: boolean;
   clubGoal: number;
 }) {
   const { updatePlayer } = useGame();
@@ -187,11 +202,16 @@ function PlayerEditor({
           <span className="rounded bg-volt/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-volt">GOAL {player.weeklyRequirement}/WK</span>
         )}
         {player.paused && <span className="rounded bg-surface-3 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-muted">⏸ PAUSED</span>}
-        {player.isAdmin && <span className="rounded bg-surface-3 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-muted">ADMIN</span>}
-        <span className="text-xs text-muted">{canEdit || canSetGoal ? (open ? "Close" : "Edit") : ""}</span>
+        {player.isOwner ? (
+          <span className="rounded bg-volt/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-volt">OWNER</span>
+        ) : (
+          player.isAdmin && <span className="rounded bg-surface-3 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-muted">ADMIN</span>
+        )}
+        <span className="text-xs text-muted">{canEdit || canPause ? (open ? "Close" : "Edit") : ""}</span>
       </button>
-      {open && canSetGoal && <PauseToggle player={player} />}
-      {open && canSetGoal && <WeeklyGoal player={player} clubGoal={clubGoal} />}
+      {open && isOwner && !player.isOwner && <AdminToggle player={player} />}
+      {open && canPause && <PauseToggle player={player} />}
+      {open && isOwner && <WeeklyGoal player={player} clubGoal={clubGoal} />}
       {open && canEdit && (
         <div className="border-t border-line p-3">
           <label className="block">
@@ -240,7 +260,52 @@ function PlayerEditor({
   );
 }
 
-/** Admin-only: pause a player (injury, travel…) without removing them. */
+/** Owner-only: give someone the admin helper powers, or take them away. */
+function AdminToggle({ player }: { player: Player }) {
+  const { setPlayerAdmin } = useGame();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const on = player.isAdmin;
+
+  async function toggle() {
+    setBusy(true);
+    setError(null);
+    try {
+      await setPlayerAdmin(player.id, !on);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="border-t border-line p-3">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">{on ? `${player.name} is an admin` : `Make ${player.name} an admin`}</p>
+          <p className="text-xs text-muted">
+            Admins get their own gyms approved instantly, approve others&apos; gyms, pause other players and can delete chat messages. Club rules,
+            goals, check-ins and admins stay with you.
+          </p>
+        </div>
+        <button
+          role="switch"
+          aria-checked={on}
+          aria-label={`Admin: ${player.name}`}
+          onClick={toggle}
+          disabled={busy}
+          className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${on ? "bg-volt" : "bg-surface-3"}`}
+        >
+          <span className={`absolute top-0.5 left-0 h-6 w-6 rounded-full bg-white shadow transition-transform ${on ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+        </button>
+      </div>
+      {error && <p className="mt-2 text-xs text-problem">{error}</p>}
+    </div>
+  );
+}
+
+/** Admins (not on themselves or the owner) and the owner: pause a player without removing them. */
 function PauseToggle({ player }: { player: Player }) {
   const { setPlayerPaused } = useGame();
   const [busy, setBusy] = useState(false);
@@ -286,7 +351,7 @@ function PauseToggle({ player }: { player: Player }) {
   );
 }
 
-/** Admin-only: a personal weekly check-in goal, e.g. 3 instead of the club's 5. */
+/** Owner-only: a personal weekly check-in goal, e.g. 3 instead of the club's 5. */
 function WeeklyGoal({ player, clubGoal }: { player: Player; clubGoal: number }) {
   const { setPlayerRequirement } = useGame();
   const [custom, setCustom] = useState(player.weeklyRequirement != null);
@@ -298,7 +363,7 @@ function WeeklyGoal({ player, clubGoal }: { player: Player; clubGoal: number }) 
 
   return (
     <div className="border-t border-line p-3">
-      <Label hint="admin only">Weekly check-in goal</Label>
+      <Label hint="owner only">Weekly check-in goal</Label>
       <div className="flex gap-2">
         <button
           onClick={() => setCustom(false)}

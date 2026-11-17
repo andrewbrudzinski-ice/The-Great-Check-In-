@@ -161,7 +161,7 @@ function NameLogin() {
         {mode === "in" ? "New here? Create your account" : "Already a member? Sign in"}
       </button>
       {mode === "in" && (
-        <p className="pt-2 text-center text-[11px] text-muted">Forgot your password? Ask the admin to reset it in Supabase.</p>
+        <p className="pt-2 text-center text-[11px] text-muted">Forgot your password? Ask the club owner to reset it in Supabase.</p>
       )}
     </form>
   );

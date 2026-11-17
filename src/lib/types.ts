@@ -4,7 +4,10 @@ export type Player = {
   /** An emoji, or an http(s) image URL. */
   avatar: string;
   color: string;
+  /** Helper powers: approve gyms, pause others, tidy the chat. */
   isAdmin: boolean;
+  /** The one club owner: everything, including rules and who's admin. */
+  isOwner: boolean;
   createdAt: string;
   /** Personal weekly check-in goal; null = the club's default. */
   weeklyRequirement: number | null;

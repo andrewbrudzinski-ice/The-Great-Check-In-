@@ -63,7 +63,7 @@ function BoardRow({ pw, isMe, streak, text }: { pw: PlayerWeek; isMe: boolean; s
             <span className="text-base text-muted">/{pw.required}</span>
           </span>
           {pw.paused ? (
-            <span className="rounded-full bg-surface-3 px-2 py-[3px] font-display text-[10px] font-bold tracking-[0.1em] text-muted" title="Paused by the admin. This week doesn't count">
+            <span className="rounded-full bg-surface-3 px-2 py-[3px] font-display text-[10px] font-bold tracking-[0.1em] text-muted" title="Paused by an admin. This week doesn't count">
               ⏸ PAUSED
             </span>
           ) : pw.warmup ? (
