@@ -11,6 +11,10 @@ import { formatTime, localDate, longDate } from "@/lib/week";
 
 /** Height of the bottom tab bar (without the safe-area inset). */
 const NAV_H = 60;
+/** The page's own bottom padding (Shell's <main>), which already clears the tab bar. */
+const MAIN_PB = 104;
+/** Breathing room between the newest message and the message box. */
+const GAP = 12;
 
 /**
  * How far the on-screen keyboard covers the page. iPhone browsers shrink the
@@ -43,7 +47,20 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+  const [composerH, setComposerH] = useState(66);
   const keyboard = useKeyboardInset();
+
+  // The message box grows with what you type; keep exactly enough room under the newest message.
+  useLayoutEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    const measure = () => setComposerH(el.getBoundingClientRect().height);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const last = messages[messages.length - 1];
 
   // Seen everything that's on screen.
@@ -78,7 +95,7 @@ export default function ChatPage() {
   // Stick to the bottom when new messages arrive (or the keyboard opens).
   useLayoutEffect(() => {
     window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
-  }, [messages.length, keyboard]);
+  }, [messages.length, keyboard, composerH]);
 
   async function send() {
     const body = text.trim();
@@ -106,7 +123,7 @@ export default function ChatPage() {
   const composerBottom = keyboard > 0 ? keyboard : `calc(${NAV_H}px + var(--safe-bottom))`;
 
   return (
-    <div className="pb-24">
+    <div>
       <header className="mb-4">
         <p className="eyebrow mb-1.5">{data.players.length} members</p>
         <h1 className="font-display text-[34px] leading-[0.95] font-black">Club chat</h1>
@@ -148,9 +165,15 @@ export default function ChatPage() {
           })}
         </ol>
       )}
+      {/* Room for the message box, so the newest message sits just above it. */}
+      <div aria-hidden style={{ height: Math.max(0, composerH + NAV_H + GAP - MAIN_PB) }} />
 
       {/* Composer: above the tab bar, or right on top of the keyboard when it's open */}
-      <div className="fixed inset-x-0 z-30 border-t border-line bg-bg/90 backdrop-blur-xl" style={{ bottom: composerBottom }}>
+      <div
+        ref={composerRef}
+        className="fixed inset-x-0 z-30 border-t border-line bg-bg/90 backdrop-blur-xl"
+        style={{ bottom: composerBottom }}
+      >
         <form
           className="mx-auto flex max-w-lg items-end gap-2 px-4 py-2.5"
           onSubmit={(e) => {
