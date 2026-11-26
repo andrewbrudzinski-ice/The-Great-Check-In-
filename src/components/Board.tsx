@@ -4,14 +4,19 @@ import Link from "next/link";
 import { LayoutGroup, motion } from "motion/react";
 import type { PlayerWeek } from "@/lib/game";
 import { useGame } from "@/lib/store";
-import { playerLine } from "@/lib/trash";
+import { playerLines } from "@/lib/trash";
 import { Avatar } from "./Avatar";
 import { SegmentBar, StatusPill, StreakBadge } from "./ui";
 
-/** The three-player board on Home. Danger is impossible to miss. */
+/** The board on Home. Real danger (no slack left) is impossible to miss. */
 export function Board() {
   const { game, me } = useGame();
   const ctx = { weekStart: game.weekStart, dayIndex: game.dayIndex, daysLeft: game.daysLeft };
+  // Everyone gets a different line.
+  const lines = playerLines(
+    game.standings.filter((pw) => !pw.paused),
+    ctx,
+  );
   return (
     <LayoutGroup>
       <ol className="space-y-2">
@@ -21,7 +26,7 @@ export function Board() {
             pw={pw}
             isMe={pw.player.id === me?.id}
             streak={game.stats[pw.player.id]?.currentStreak ?? 0}
-            text={pw.paused ? "On pause. This week doesn't count." : playerLine(pw, ctx)}
+            text={pw.paused ? "On pause. This week doesn't count." : (lines.get(pw.player.id) ?? "")}
           />
         ))}
       </ol>

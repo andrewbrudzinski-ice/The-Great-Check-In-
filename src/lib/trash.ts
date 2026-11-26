@@ -100,12 +100,21 @@ function hash(s: string): number {
 const SESSION_SALT = Math.floor(Math.random() * 1e9).toString(36);
 
 export function line(pool: Pool, seed: string, vars: Partial<Vars> = {}): string {
+  return fill(pickTemplate(pool, seed, vars), vars);
+}
+
+/** Pick a template; `avoid` skips ones already used elsewhere on screen (if any are left). */
+function pickTemplate(pool: Pool, seed: string, vars: Partial<Vars>, avoid?: Set<string>): string {
   // Second-person copy ("You needs 2 more") reads wrong, so skip named lines.
   const all: readonly string[] = POOLS[pool];
   const unnamed = all.filter((t) => !t.includes("{name}"));
   const options = vars.name === "You" && unnamed.length ? unnamed : all;
-  const tpl = options[hash(seed + SESSION_SALT) % options.length];
-  return fill(tpl, vars);
+  const start = hash(seed + SESSION_SALT) % options.length;
+  for (let i = 0; i < options.length; i++) {
+    const tpl = options[(start + i) % options.length];
+    if (!avoid?.has(tpl)) return tpl;
+  }
+  return options[start];
 }
 
 function fill(tpl: string, v: Partial<Vars>) {
@@ -119,8 +128,8 @@ function fill(tpl: string, v: Partial<Vars>) {
     .replaceAll("{daysWord}", v.days === 1 ? "day" : "days");
 }
 
-/** The one-liner for a player's current week. */
-export function playerLine(pw: PlayerWeek, ctx: { weekStart: string; dayIndex: number; daysLeft: number }, firstPerson = false): string {
+/** Which pool and wording a player's current week calls for. */
+function playerPick(pw: PlayerWeek, ctx: { weekStart: string; dayIndex: number; daysLeft: number }, firstPerson: boolean) {
   const vars: Vars = {
     name: firstPerson ? "You" : pw.player.name,
     n: pw.remaining,
@@ -130,17 +139,35 @@ export function playerLine(pw: PlayerWeek, ctx: { weekStart: string; dayIndex: n
     days: ctx.daysLeft,
   };
   const seed = pw.player.id + ctx.weekStart + pw.count + (firstPerson ? "you" : "");
+  let pool: Pool;
   if (pw.completed) {
-    if (pw.count > pw.required || ctx.daysLeft >= 3) {
-      return line("overachiever", seed, { ...vars, day: completedDay(pw) });
-    }
-    return line("safe", seed, vars);
-  }
-  if (pw.count === 0) return line("zero", seed, vars);
-  if (pw.needsDoubles) return line("doubles", seed, vars);
+    if (pw.count > pw.required || ctx.daysLeft >= 3) return { pool: "overachiever" as Pool, seed, vars: { ...vars, day: completedDay(pw) } };
+    pool = "safe";
+  } else if (pw.count === 0) pool = "zero";
+  else if (pw.needsDoubles) pool = "doubles";
   // Early in the week a low count is fine as long as there are spare days.
-  if (pw.status === "problem" && pw.remaining <= ctx.daysLeft - 2) return line("pace", seed, vars);
-  return line(pw.status === "one" ? "one" : pw.status === "close" ? "close" : "problem", seed, vars);
+  else if (pw.status === "problem" && pw.remaining <= ctx.daysLeft - 2) pool = "pace";
+  else pool = pw.status === "one" ? "one" : pw.status === "close" ? "close" : "problem";
+  return { pool, seed, vars };
+}
+
+/** The one-liner for a player's current week. */
+export function playerLine(pw: PlayerWeek, ctx: { weekStart: string; dayIndex: number; daysLeft: number }, firstPerson = false): string {
+  const p = playerPick(pw, ctx, firstPerson);
+  return line(p.pool, p.seed, p.vars);
+}
+
+/** One-liners for everyone on a board, never the same line twice (while the pool allows). */
+export function playerLines(list: PlayerWeek[], ctx: { weekStart: string; dayIndex: number; daysLeft: number }): Map<string, string> {
+  const used = new Set<string>();
+  const out = new Map<string, string>();
+  for (const pw of list) {
+    const p = playerPick(pw, ctx, false);
+    const tpl = pickTemplate(p.pool, p.seed, p.vars, used);
+    used.add(tpl);
+    out.set(pw.player.id, fill(tpl, p.vars));
+  }
+  return out;
 }
 
 function completedDay(pw: PlayerWeek) {
@@ -150,10 +177,22 @@ function completedDay(pw: PlayerWeek) {
 }
 
 /** "Who's in trouble" headline for one player — third person, a bit meaner. */
-export function troubleLine(pw: PlayerWeek, ctx: { weekStart: string; dayIndex: number; daysLeft: number }): string {
+export function troubleLine(
+  pw: PlayerWeek,
+  ctx: { weekStart: string; dayIndex: number; daysLeft: number },
+  /** Wordings already on screen (name stripped); skipped while there are others. */
+  avoid?: Set<string>,
+): string {
   const name = pw.player.name;
   const seed = "t" + pw.player.id + ctx.weekStart + pw.count;
-  const pick = (opts: string[]) => opts[hash(seed + SESSION_SALT) % opts.length];
+  const pick = (opts: string[]) => {
+    const start = hash(seed + SESSION_SALT) % opts.length;
+    for (let i = 0; i < opts.length; i++) {
+      const o = opts[(start + i) % opts.length];
+      if (!avoid?.has(o.replaceAll(name, "\u0000"))) return o;
+    }
+    return opts[start];
+  };
   const n = pw.remaining;
   const s = n === 1 ? "" : "s";
   switch (pw.status) {
@@ -170,6 +209,18 @@ export function troubleLine(pw: PlayerWeek, ctx: { weekStart: string; dayIndex: 
       if (pw.needsDoubles) return pick([`${name} needs ${n} in ${ctx.daysLeft} day${ctx.daysLeft === 1 ? "" : "s"}. Start stretching.`, `${name} is in two-a-day territory.`]);
       return pick([`${name} needs ${n} more check-in${s}. Yikes.`, `${name} has some explaining to do.`, `${name} is speedrunning a punishment.`]);
   }
+}
+
+/** troubleLine for a whole list, never repeating a wording. */
+export function troubleLines(list: PlayerWeek[], ctx: { weekStart: string; dayIndex: number; daysLeft: number }): Map<string, string> {
+  const used = new Set<string>();
+  const out = new Map<string, string>();
+  for (const pw of list) {
+    const text = troubleLine(pw, ctx, used);
+    used.add(text.replaceAll(pw.player.name, "\u0000"));
+    out.set(pw.player.id, text);
+  }
+  return out;
 }
 
 /** "A", "A & B", "A, B & C" */

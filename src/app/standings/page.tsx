@@ -7,7 +7,7 @@ import { SkullIcon } from "@/components/Icons";
 import { PageTitle, SectionTitle, SegmentBar, StatusPill, StreakBadge } from "@/components/ui";
 import { STATUS_META } from "@/lib/game";
 import { useGame } from "@/lib/store";
-import { joinNames, line, troubleLine } from "@/lib/trash";
+import { joinNames, line, troubleLines } from "@/lib/trash";
 import { formatDuration, weekRangeLabel } from "@/lib/week";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -17,6 +17,8 @@ export default function StandingsPage() {
   const { data, game, now, me } = useGame();
   const s = data.settings;
   const ctx = { weekStart: game.weekStart, dayIndex: game.dayIndex, daysLeft: game.daysLeft };
+  const trouble = [...game.standings].filter((pw) => !pw.paused).sort((a, b) => b.remaining - a.remaining);
+  const troubleText = troubleLines(trouble, ctx);
   const short = game.standings.filter((p) => !p.completed && !p.warmup && !p.paused);
 
   const streakBoard = [...game.standings].sort(
@@ -88,10 +90,7 @@ export default function StandingsPage() {
           </div>
         ) : (
           <ul className="space-y-4">
-            {[...game.standings]
-              .filter((pw) => !pw.paused)
-              .sort((a, b) => b.remaining - a.remaining)
-              .map((pw) => {
+            {trouble.map((pw) => {
                 const meta = STATUS_META[pw.status];
                 return (
                   <li key={pw.player.id} className="flex gap-3">
@@ -102,7 +101,7 @@ export default function StandingsPage() {
                         <StatusPill status={pw.status} />
                         {pw.inDanger && <span className="text-[10px] font-black tracking-wider text-problem">← IN DANGER</span>}
                       </div>
-                      <p className="mt-1.5 text-[15px] font-medium">{troubleLine(pw, ctx)}</p>
+                      <p className="mt-1.5 text-[15px] font-medium">{troubleText.get(pw.player.id)}</p>
                       <div className="mt-2 max-w-[220px]">
                         <SegmentBar count={pw.count} required={pw.required} status={pw.status} height={5} />
                       </div>
