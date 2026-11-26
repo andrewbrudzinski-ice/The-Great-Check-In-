@@ -64,7 +64,8 @@ test("standings, danger, history, streaks", () => {
   assert.deepEqual(g.standings.map((s) => [s.player.id, s.count, s.status]), [
     ["B", 4, "one"], ["A", 2, "problem"], ["C", 0, "problem"],
   ]);
-  assert.equal(g.standings.find((s) => s.inDanger)?.player.id, "C");
+  // Tuesday with 6 days left: C is last on 0/5, but has slack. Behind isn't danger.
+  assert.equal(g.standings.some((s) => s.inDanger), false);
   assert.equal(g.standings.find((s) => s.player.id === "A")!.checkedInToday, true);
 
   assert.equal(g.history.length, 3);
@@ -75,7 +76,8 @@ test("standings, danger, history, streaks", () => {
   assert.equal(g.stats.B.currentStreak, 0);
   assert.equal(g.stats.B.bestStreak, 2);
   assert.equal(g.stats.C.currentStreak, 2);
-  assert.equal(g.stats.C.punishmentsCaused, 1);
+  assert.equal(g.stats.C.soloFails, 1); // only one who missed Sep 14
+  assert.equal(g.stats.B.soloFails, 1); // only one who missed Sep 28
   assert.equal(g.stats.A.total, 17);
 });
 
@@ -99,7 +101,7 @@ test("completing the requirement ranks first and extends streak live", () => {
   const g = computeGame(data(ins), new Date("2026-10-07T03:00:00Z"));
   assert.deepEqual(g.standings.map((s) => s.player.id), ["C", "A", "B"]); // C reached 5 first
   assert.equal(g.stats.C.streakIncludesThisWeek, true);
-  assert.deepEqual(g.standings.filter((s) => s.inDanger).map((s) => s.player.id), ["B"]);
+  assert.equal(g.standings.some((s) => s.inDanger), false); // B is on 0, but it's only Tuesday
 });
 
 test("nobody is singled out in a full tie", () => {
@@ -187,4 +189,31 @@ test("paused players don't count: no danger, no culprit, streak frozen", () => {
   const g2 = computeGame({ ...d, players }, new Date("2026-10-06T15:00:00Z"));
   assert.equal(g2.history.find((w) => w.weekStart === "2026-09-28")!.culprits.length, 0);
   assert.equal(g2.stats.C.currentStreak, 2);
+});
+
+test("danger means no slack left, not just being behind", () => {
+  // Saturday Oct 10 (2 days left: Sat + Sun).
+  const ins: CheckIn[] = [];
+  for (let d = 0; d < 5; d++) ins.push(ci("A", addDays("2026-10-05", d))); // A done
+  for (let d = 0; d < 3; d++) ins.push(ci("B", addDays("2026-10-05", d))); // B 3/5: needs Sat + Sun
+  for (let d = 0; d < 4; d++) ins.push(ci("C", addDays("2026-10-05", d))); // C 4/5: one spare day
+  const sat = new Date(midnightIn("2026-10-10", tz).getTime() + 10 * 3600000);
+  let g = computeGame(data(ins), sat);
+  assert.equal(g.daysLeft, 2);
+  const by = (id: string) => g.standings.find((s) => s.player.id === id)!;
+  assert.deepEqual([by("A").inDanger, by("B").inDanger, by("C").inDanger], [false, true, false]);
+  assert.equal(by("B").needsDoubles, false);
+
+  // C checks in Saturday morning → still needs 1 with only Sunday left: no spare, so danger.
+  // B checks in Saturday too → needs 1, only Sunday: danger. Neither needs doubles.
+  g = computeGame(data([...ins, ci("C", "2026-10-10", 8)]), sat);
+  assert.equal(by("C").inDanger, false); // 5/5 now
+  const ins2 = [...ins.filter((c) => c.userId !== "C"), ci("C", "2026-10-05"), ci("C", "2026-10-06"), ci("C", "2026-10-10", 8)];
+  g = computeGame(data(ins2), sat);
+  assert.equal(by("C").count, 3); // needs 2, been today, only Sunday left → doubles + danger
+  assert.deepEqual([by("C").inDanger, by("C").needsDoubles], [true, true]);
+
+  // Monday morning: nobody has checked in, nobody is in danger.
+  g = computeGame(data([]), new Date(midnightIn("2026-10-12", tz).getTime() + 9 * 3600000));
+  assert.equal(g.standings.some((s) => s.inDanger), false);
 });

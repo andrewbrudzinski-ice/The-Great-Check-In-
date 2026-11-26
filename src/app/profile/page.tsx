@@ -119,7 +119,7 @@ function Profile() {
         <BigStat label="Best streak" value={st.bestStreak} suffix="wks" />
         <BigStat label="Weeks completed" value={st.weeksCompleted} tone="safe" />
         <BigStat label="Weeks failed" value={st.weeksFailed} tone={st.weeksFailed ? "problem" : undefined} />
-        <BigStat label="Punishments caused" value={st.punishmentsCaused} tone={st.punishmentsCaused ? "problem" : undefined} />
+        <BigStat label="Solo fails" hint="Only one who missed" value={st.soloFails} tone={st.soloFails ? "problem" : undefined} />
         <BigStat
           label="Success rate"
           value={st.weeksCompleted + st.weeksFailed ? Math.round((st.weeksCompleted / (st.weeksCompleted + st.weeksFailed)) * 100) : 0}
@@ -307,7 +307,20 @@ function Profile() {
   );
 }
 
-function BigStat({ label, value, suffix, tone }: { label: string; value: number; suffix?: string; tone?: "safe" | "problem" }) {
+function BigStat({
+  label,
+  value,
+  suffix,
+  tone,
+  hint,
+}: {
+  label: string;
+  value: number;
+  suffix?: string;
+  tone?: "safe" | "problem";
+  /** A few words under the number explaining it. */
+  hint?: string;
+}) {
   return (
     <div>
       <dt className="eyebrow">{label}</dt>
@@ -320,6 +333,7 @@ function BigStat({ label, value, suffix, tone }: { label: string; value: number;
         </span>
         {suffix && <span className="text-sm font-semibold text-muted">{suffix}</span>}
       </dd>
+      {hint && <dd className="mt-1 text-[11px] text-muted">{hint}</dd>}
     </div>
   );
 }

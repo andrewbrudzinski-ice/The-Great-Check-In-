@@ -17,9 +17,9 @@ export type PlayerWeek = {
   completedAt: string | null;
   lastCheckIn: CheckIn | null;
   checkedInToday: boolean;
-  /** remaining > days left in the week (needs double sessions). */
+  /** More check-ins needed than days left to do them (needs double sessions). */
   needsDoubles: boolean;
-  /** Furthest from the goal while someone else is ahead of them. */
+  /** Really at risk: no slack left, every remaining day (or more) is needed. */
   inDanger: boolean;
   /** Joined mid-week: shown on the board, but this week doesn't count. */
   warmup: boolean;
@@ -58,8 +58,8 @@ export type PlayerStats = {
   bestStreak: number;
   weeksCompleted: number;
   weeksFailed: number;
-  /** Weeks where this player's miss put the whole group on the hook. */
-  punishmentsCaused: number;
+  /** Weeks where this player was the only one who missed: the punishment is all on them. */
+  soloFails: number;
   /** Current streak already counts this (still running) week. */
   streakIncludesThisWeek: boolean;
   /** Weekly counts for finished weeks, oldest first. */
@@ -134,6 +134,10 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
     const req = reqFor(player);
     const remaining = Math.max(0, req - count);
     const last = mine[mine.length - 1] ?? null;
+    const checkedInToday = !!last && localDate(last.checkedInAt, tz) === today;
+    // Days they can still get a check-in in (today doesn't count if they've been).
+    const openDays = daysLeft - (checkedInToday ? 1 : 0);
+    const warmup = localDate(player.createdAt, tz) > weekStart;
     return {
       player,
       count,
@@ -144,10 +148,11 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
       rank: 0,
       completedAt: count >= req ? mine[req - 1].checkedInAt : null,
       lastCheckIn: last,
-      checkedInToday: !!last && localDate(last.checkedInAt, tz) === today,
-      needsDoubles: remaining > daysLeft,
-      inDanger: false,
-      warmup: localDate(player.createdAt, tz) > weekStart,
+      checkedInToday,
+      needsDoubles: remaining > openDays,
+      // Danger only when there's no slack left, not just for being behind someone.
+      inDanger: remaining > 0 && remaining >= openDays && !warmup && !player.paused,
+      warmup,
       paused: !!player.paused,
       // tie-breaker: whoever reached their current count first
       _reachedAt: last?.checkedInAt ?? "9999",
@@ -164,15 +169,7 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
       a.player.name.localeCompare(b.player.name),
   );
   const standings: PlayerWeek[] = rows.map(({ _reachedAt, ...r }, i) => ({ ...r, rank: i + 1 }));
-  // Danger = whoever needs the most, but only if someone is actually doing
-  // better than them (a three-way tie means nobody is singled out).
   const competing = standings.filter((s) => !s.warmup && !s.paused);
-  const short = competing.filter((s) => !s.completed);
-  if (short.length) {
-    const most = Math.max(...short.map((s) => s.remaining));
-    const worst = short.filter((s) => s.remaining === most);
-    if (worst.length < competing.length) worst.forEach((s) => (s.inDanger = true));
-  }
 
   // ---- Finished weeks --------------------------------------------------
   const frozenByWeek = new Map<string, WeekResult[]>();
@@ -247,6 +244,7 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
     let best = 0;
     let completed = 0;
     let failed = 0;
+    let solo = 0;
     const timeline: PlayerStats["timeline"] = [];
     for (const w of chronological) {
       const row = w.rows.find((r) => r.player.id === p.id);
@@ -259,6 +257,7 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
         best = Math.max(best, streak);
       } else {
         failed++;
+        if (w.culprits.length === 1) solo++;
         streak = 0;
       }
     }
@@ -275,7 +274,7 @@ export function computeGame(data: AppData, now: Date = new Date()): GameState {
       bestStreak: best,
       weeksCompleted: completed,
       weeksFailed: failed,
-      punishmentsCaused: failed,
+      soloFails: solo,
       streakIncludesThisWeek: includes,
       timeline,
     };
