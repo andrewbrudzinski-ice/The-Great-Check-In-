@@ -51,9 +51,33 @@ export default function ChatPage() {
     markChatRead(last?.createdAt ?? new Date().toISOString());
   }, [last?.createdAt]);
 
+  // Open at the newest message. The router (and late-loading avatars) can move
+  // the page after the first paint, so keep pinning to the bottom for a moment,
+  // and stop the instant you touch or scroll yourself.
+  useLayoutEffect(() => {
+    const toBottom = () => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
+    toBottom();
+    let raf = requestAnimationFrame(function tick() {
+      toBottom();
+      raf = requestAnimationFrame(tick);
+    });
+    const stop = () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+      window.removeEventListener("touchstart", stop);
+      window.removeEventListener("wheel", stop);
+      window.removeEventListener("keydown", stop);
+    };
+    const timer = setTimeout(stop, 800);
+    window.addEventListener("touchstart", stop, { passive: true });
+    window.addEventListener("wheel", stop, { passive: true });
+    window.addEventListener("keydown", stop);
+    return stop;
+  }, []);
+
   // Stick to the bottom when new messages arrive (or the keyboard opens).
   useLayoutEffect(() => {
-    window.scrollTo({ top: document.documentElement.scrollHeight });
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
   }, [messages.length, keyboard]);
 
   async function send() {

@@ -61,6 +61,8 @@ export function BottomNav() {
             <li key={href} className="flex-1">
               <Link
                 href={href}
+                // Chat opens at the newest message on its own; don't let the router jump it to the top.
+                scroll={href !== "/chat"}
                 aria-current={active ? "page" : undefined}
                 onClick={() => {
                   if (href !== pathname) setPending(href);
