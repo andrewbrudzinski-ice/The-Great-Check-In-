@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { motion } from "motion/react";
 import { useApp } from "@/lib/store";
 import { useChatLastRead } from "@/lib/chatRead";
 import { ChatIcon, FlameIcon, HomeIcon, MapIcon, TrophyIcon, UserIcon } from "./Icons";
@@ -34,6 +33,12 @@ export function BottomNav() {
     for (const t of TABS) router.prefetch(t.href);
   }, [router]);
   const current = pending ?? pathname;
+  const activeIndex = TABS.findIndex(
+    ({ href, also, also2 }) =>
+      (href === "/" ? current === "/" : current.startsWith(href)) ||
+      (!!also && current.startsWith(also)) ||
+      (!!also2 && current.startsWith(also2)),
+  );
   const { data, session } = useApp();
   const lastRead = useChatLastRead();
   // Unread = other people's messages newer than the last one you saw here.
@@ -50,12 +55,20 @@ export function BottomNav() {
         </div>
       )}
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/80 backdrop-blur-xl" aria-label="Main">
-      <ul className="mx-auto flex max-w-lg items-stretch justify-around px-1">
-        {TABS.map(({ href, label, Icon, also, also2 }) => {
-          const active =
-            (href === "/" ? current === "/" : current.startsWith(href)) ||
-            (!!also && current.startsWith(also)) ||
-            (!!also2 && current.startsWith(also2));
+      <ul className="relative mx-auto flex max-w-lg items-stretch justify-around px-1">
+        {/* One highlight bar that slides sideways to the active tab. Plain CSS on
+            purpose: it only ever moves along the bar, whatever the page scroll does. */}
+        <span
+          aria-hidden
+          data-nav-indicator
+          className="pointer-events-none absolute top-0 h-[2px] w-8 rounded-full bg-volt transition-[left,opacity] duration-300 ease-out"
+          style={{
+            left: `calc(4px + (100% - 8px) * ${(Math.max(0, activeIndex) + 0.5) / TABS.length} - 16px)`,
+            opacity: activeIndex < 0 ? 0 : 1,
+          }}
+        />
+        {TABS.map(({ href, label, Icon }, i) => {
+          const active = i === activeIndex;
           const badge = href === "/chat" && !active && unread > 0 ? unread : 0;
           return (
             <li key={href} className="flex-1">
@@ -73,13 +86,6 @@ export function BottomNav() {
                   active ? "text-ink" : "text-muted hover:text-ink-2"
                 }`}
               >
-                {active && (
-                  <motion.span
-                    layoutId="nav-dot"
-                    className="absolute top-0 h-[2px] w-8 rounded-full bg-volt"
-                    transition={{ type: "spring", stiffness: 500, damping: 38 }}
-                  />
-                )}
                 <span className="relative transition-transform duration-75 group-active:scale-90">
                   <Icon size={22} strokeWidth={active ? 2.1 : 1.7} />
                   {badge > 0 && (
