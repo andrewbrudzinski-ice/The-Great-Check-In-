@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { motion } from "motion/react";
 import { useEffect, useState } from "react";
+import { haptics } from "@/lib/haptics";
 import { useApp } from "@/lib/store";
 import { useChatLastRead } from "@/lib/chatRead";
 import { ChatIcon, FlameIcon, HomeIcon, MapIcon, TrophyIcon, UserIcon } from "./Icons";
@@ -54,14 +56,14 @@ export function BottomNav() {
           <div className="h-full w-1/3 animate-[navload_0.9s_ease-in-out_infinite] rounded-full bg-volt" />
         </div>
       )}
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/80 backdrop-blur-xl" aria-label="Main">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/85 backdrop-blur-xl backdrop-saturate-150" aria-label="Main">
       <ul className="relative mx-auto flex max-w-lg items-stretch justify-around px-1">
         {/* One highlight bar that slides sideways to the active tab. Plain CSS on
             purpose: it only ever moves along the bar, whatever the page scroll does. */}
         <span
           aria-hidden
           data-nav-indicator
-          className="pointer-events-none absolute top-0 h-[2px] w-8 rounded-full bg-volt transition-[left,opacity] duration-300 ease-out"
+          className="pointer-events-none absolute top-0 h-[2px] w-8 rounded-b-full bg-volt transition-[left,opacity] duration-[340ms] ease-[cubic-bezier(0.3,1.25,0.5,1)] motion-reduce:transition-none"
           style={{
             left: `calc(4px + (100% - 8px) * ${(Math.max(0, activeIndex) + 0.5) / TABS.length} - 16px)`,
             opacity: activeIndex < 0 ? 0 : 1,
@@ -78,23 +80,39 @@ export function BottomNav() {
                 scroll={href !== "/chat"}
                 aria-current={active ? "page" : undefined}
                 onClick={() => {
-                  if (href !== pathname) setPending(href);
+                  if (href !== pathname) {
+                    haptics.tap();
+                    setPending(href);
+                  }
                 }}
                 // The whole column is tappable, down through the home-bar area.
                 style={{ paddingBottom: "calc(8px + var(--safe-bottom))" }}
-                className={`group relative flex h-full flex-col items-center gap-1 pt-2.5 text-[10px] font-semibold whitespace-nowrap transition-colors select-none active:opacity-60 ${
-                  active ? "text-ink" : "text-muted hover:text-ink-2"
+                className={`group relative flex h-full flex-col items-center gap-1 pt-2.5 text-[10.5px] whitespace-nowrap transition-colors duration-200 select-none ${
+                  active ? "font-semibold text-ink" : "font-medium text-muted hover:text-ink-2"
                 }`}
               >
-                <span className="relative transition-transform duration-75 group-active:scale-90">
-                  <Icon size={22} strokeWidth={active ? 2.1 : 1.7} />
+                <span className="relative transition-transform duration-100 group-active:scale-[0.88]">
+                  {/* Pops once when the tab becomes active. */}
+                  <motion.span
+                    key={active ? "on" : "off"}
+                    className="block"
+                    initial={active ? { scale: 0.8 } : false}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 520, damping: 18 }}
+                  >
+                    <Icon size={23} strokeWidth={active ? 1.9 : 1.6} />
+                  </motion.span>
                   {badge > 0 && (
-                    <span
-                      className="absolute -top-1.5 -right-2.5 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-problem px-1 text-[10px] leading-none font-bold text-white tabular"
+                    <motion.span
+                      key={badge}
+                      initial={{ scale: 0.5 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 600, damping: 16 }}
+                      className="absolute -top-1.5 -right-2.5 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-problem px-1 text-[10px] leading-none font-bold text-white tabular shadow-[0_0_0_2px_var(--color-bg)]"
                       aria-label={`${badge} unread`}
                     >
                       {badge > 9 ? "9+" : badge}
-                    </span>
+                    </motion.span>
                   )}
                 </span>
                 {label}

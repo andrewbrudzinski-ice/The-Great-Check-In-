@@ -128,7 +128,7 @@ export default function Home() {
           })}
         </div>
         <div className="text-right">
-          <p className="font-display tabular text-lg leading-none font-black">{formatDuration(game.weekEndsAt.getTime() - now.getTime())}</p>
+          <p className="font-big text-[22px] leading-none">{formatDuration(game.weekEndsAt.getTime() - now.getTime())}</p>
           <p className="mt-1 text-[10px] font-semibold tracking-wider text-muted uppercase">left</p>
         </div>
       </div>

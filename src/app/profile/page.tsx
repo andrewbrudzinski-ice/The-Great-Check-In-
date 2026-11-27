@@ -100,7 +100,7 @@ function Profile() {
               key={st.currentStreak}
               initial={{ scale: 1.4, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="font-display tabular text-5xl leading-none font-black"
+              className="font-big text-[56px] leading-none"
             >
               {st.currentStreak}
             </motion.span>
@@ -326,7 +326,7 @@ function BigStat({
       <dt className="eyebrow">{label}</dt>
       <dd className="mt-1 flex items-baseline gap-1">
         <span
-          className="font-display tabular text-4xl leading-none font-black"
+          className="font-big text-[44px] leading-none"
           style={tone ? { color: `var(--color-${tone})` } : undefined}
         >
           {value}

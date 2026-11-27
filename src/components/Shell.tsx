@@ -1,5 +1,6 @@
 "use client";
 
+import { MotionConfig } from "motion/react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import "@/lib/install"; // start listening for the install prompt as early as possible
@@ -8,6 +9,15 @@ import { BottomNav } from "./BottomNav";
 
 /** Auth gate + chrome. Every screen except /login renders only with data. */
 export function Shell({ children }: { children: ReactNode }) {
+  // "user": follow the phone's Reduce Motion setting for every animation.
+  return (
+    <MotionConfig reducedMotion="user">
+      <Chrome>{children}</Chrome>
+    </MotionConfig>
+  );
+}
+
+function Chrome({ children }: { children: ReactNode }) {
   const { status, error, refresh, mode } = useApp();
   const pathname = usePathname();
   const router = useRouter();
