@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo, Geist_Mono, Inter } from "next/font/google";
+import { preconnect } from "react-dom";
 import { Shell } from "@/components/Shell";
+import { SUPABASE_URL } from "@/lib/config";
 import { AppProvider } from "@/lib/store";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
@@ -53,6 +55,8 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Open the connection to the database while the app's code downloads, so the first fetch doesn't wait for it.
+  if (SUPABASE_URL) preconnect(SUPABASE_URL, { crossOrigin: "anonymous" });
   return (
     <html lang="en" className={`${archivo.variable} ${inter.variable} ${mono.variable}`}>
       <body>

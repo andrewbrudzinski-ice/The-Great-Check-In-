@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getBackend, type Session } from "./backend";
+import { forgetClub, savedClub, saveClub } from "./cache";
 import type { ChallengeInput, GymInput, ProgramInput } from "./backend/types";
 import { computeGame, type GameState } from "./game";
 import { getCurrentFix, LocationError } from "./geo";
@@ -16,6 +17,10 @@ type Status = "loading" | "signedOut" | "ready" | "error";
 type Ctx = {
   status: Status;
   error: string | null;
+  /** False while the screen shows this phone's saved copy and fresh data is on its way. */
+  fresh: boolean;
+  /** Set when a refresh failed but there's data on screen to keep showing. */
+  refreshError: string | null;
   mode: "supabase" | "demo";
   session: Session | null;
   data: AppData | null;
@@ -57,40 +62,87 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [data, setData] = useState<AppData | null>(null);
+  const [fresh, setFresh] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const loadSeq = useRef(0);
+  // Who the data on screen belongs to, and whether there is any.
+  const user = useRef<Session | null>(null);
+  const hasData = useRef(false);
+  // Keep a copy on the phone for an instant start (real club only; the demo is instant anyway).
+  const keepCopy = backend.mode === "supabase";
 
   const load = useCallback(
     async (finalize: boolean) => {
       const seq = ++loadSeq.current;
       try {
-        if (finalize) await backend.finalizeWeeks();
-        const d = await backend.load();
+        // Close out finished weeks alongside the fetch instead of before it. It almost never has
+        // anything to do; when it does (first open after a week ends), fetch again to get the results.
+        const [closed, first] = await Promise.all([
+          finalize ? backend.finalizeWeeks().catch(() => 0) : 0,
+          backend.load(),
+        ]);
+        const d = closed > 0 ? await backend.load() : first;
         if (seq !== loadSeq.current) return;
         setData(d);
+        hasData.current = true;
         setError(null);
+        setRefreshError(null);
+        setFresh(true);
         setStatus("ready");
+        if (keepCopy && user.current) saveClub(user.current.userId, user.current.email, d);
       } catch (e) {
         if (seq !== loadSeq.current) return;
-        setError(e instanceof Error ? e.message : "Couldn't load the club.");
-        setStatus("error");
+        const message = e instanceof Error ? e.message : "Couldn't load the club.";
+        // With something on screen, keep showing it and say the refresh failed.
+        if (hasData.current) setRefreshError(message);
+        else {
+          setError(message);
+          setStatus("error");
+        }
       }
     },
-    [backend],
+    [backend, keepCopy],
   );
 
   // Auth bootstrap
   useEffect(() => {
     let alive = true;
     let current: string | null | undefined; // undefined = not resolved yet
+    // Draw the club from the phone's saved copy straight away; the session check
+    // (which may need the network to renew a login) and fresh data follow. Only
+    // the copy of whoever is logged in on this phone, never anyone else's.
+    const stored = keepCopy ? backend.storedUserId() : null;
+    const saved = stored ? savedClub(stored) : null;
+    if (saved) {
+      user.current = { userId: saved.userId, email: saved.email };
+      hasData.current = true;
+      setSession(user.current);
+      setData(saved.data);
+      setStatus("ready");
+    }
     const apply = (s: Session | null) => {
       if (!alive || current === (s?.userId ?? null)) return;
       current = s?.userId ?? null;
+      loadSeq.current++; // drop any load still running for someone else
+      user.current = s;
       setSession(s);
+      setFresh(false);
+      setRefreshError(null);
       if (s) {
-        setStatus("loading");
+        const copy = saved?.userId === s.userId ? saved : keepCopy ? savedClub(s.userId) : null;
+        if (copy) {
+          hasData.current = true;
+          setData(copy.data);
+          setStatus("ready");
+        } else {
+          hasData.current = false;
+          setData(null);
+          setStatus("loading");
+        }
         load(true);
       } else {
+        hasData.current = false;
         setData(null);
         setStatus("signedOut");
       }
@@ -101,7 +153,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       alive = false;
       off();
     };
-  }, [backend, load]);
+  }, [backend, load, keepCopy]);
 
   // Clock: drives countdowns and the Monday rollover.
   useEffect(() => {
@@ -244,12 +296,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
+    forgetClub(); // nothing of the club stays on the phone once you sign out
     await backend.signOut();
   }, [backend]);
 
   const value: Ctx = {
     status,
     error,
+    fresh,
+    refreshError,
     mode: backend.mode,
     session,
     data,

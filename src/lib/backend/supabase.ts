@@ -196,6 +196,8 @@ export function createSupabaseBackend(): Backend {
   const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: true, autoRefreshToken: true },
   });
+  // Where supabase-js keeps the login on this phone (its default key for this project).
+  const authKey = `sb-${new URL(SUPABASE_URL).hostname.split(".")[0]}-auth-token`;
 
   const toSession = (s: { user: { id: string; email?: string } } | null): Session | null =>
     s ? { userId: s.user.id, email: s.user.email } : null;
@@ -252,6 +254,14 @@ export function createSupabaseBackend(): Backend {
       return toSession(data.session);
     },
 
+    storedUserId() {
+      try {
+        return JSON.parse(localStorage.getItem(authKey) ?? "null")?.user?.id ?? null;
+      } catch {
+        return null;
+      }
+    },
+
     onAuthChange(cb) {
       const { data } = sb.auth.onAuthStateChange((_e, s) => cb(toSession(s)));
       return () => data.subscription.unsubscribe();
@@ -288,8 +298,9 @@ export function createSupabaseBackend(): Backend {
     },
 
     async finalizeWeeks() {
-      const { error } = await sb.rpc("finalize_past_weeks");
+      const { data, error } = await sb.rpc("finalize_past_weeks");
       if (error) console.warn("finalize_past_weeks failed", error.message);
+      return typeof data === "number" ? data : 0;
     },
 
     async load(): Promise<AppData> {

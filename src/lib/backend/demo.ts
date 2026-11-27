@@ -319,6 +319,9 @@ export function createDemoBackend(): Backend {
     async getSession() {
       return currentSession();
     },
+    storedUserId() {
+      return currentSession()?.userId ?? null;
+    },
     onAuthChange(cb) {
       listeners.add(cb);
       return () => listeners.delete(cb);
@@ -337,7 +340,9 @@ export function createDemoBackend(): Backend {
     },
     async finalizeWeeks() {
       const db = read();
-      if (freeze(db, new Date())) write(db);
+      if (!freeze(db, new Date())) return 0;
+      write(db);
+      return 1;
     },
     async load() {
       const db = read();
