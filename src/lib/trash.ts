@@ -151,21 +151,40 @@ function playerPick(pw: PlayerWeek, ctx: { weekStart: string; dayIndex: number; 
   return { pool, seed, vars };
 }
 
-/** The one-liner for a player's current week. */
-export function playerLine(pw: PlayerWeek, ctx: { weekStart: string; dayIndex: number; daysLeft: number }, firstPerson = false): string {
+/**
+ * The one-liner for a player's current week. Pass `board` (the same list the
+ * race board gets) and it steers clear of the line the board shows for them.
+ */
+export function playerLine(
+  pw: PlayerWeek,
+  ctx: { weekStart: string; dayIndex: number; daysLeft: number },
+  firstPerson = false,
+  board?: PlayerWeek[],
+): string {
   const p = playerPick(pw, ctx, firstPerson);
-  return line(p.pool, p.seed, p.vars);
+  const onBoard = board && boardTemplates(board, ctx).get(pw.player.id);
+  return fill(pickTemplate(p.pool, p.seed, p.vars, onBoard ? new Set([onBoard]) : undefined), p.vars);
 }
 
-/** One-liners for everyone on a board, never the same line twice (while the pool allows). */
-export function playerLines(list: PlayerWeek[], ctx: { weekStart: string; dayIndex: number; daysLeft: number }): Map<string, string> {
+/** Which template each player on a board gets: never the same one twice (while the pool allows). */
+function boardTemplates(list: PlayerWeek[], ctx: { weekStart: string; dayIndex: number; daysLeft: number }): Map<string, string> {
   const used = new Set<string>();
   const out = new Map<string, string>();
   for (const pw of list) {
     const p = playerPick(pw, ctx, false);
     const tpl = pickTemplate(p.pool, p.seed, p.vars, used);
     used.add(tpl);
-    out.set(pw.player.id, fill(tpl, p.vars));
+    out.set(pw.player.id, tpl);
+  }
+  return out;
+}
+
+/** One-liners for everyone on a board, never the same line twice (while the pool allows). */
+export function playerLines(list: PlayerWeek[], ctx: { weekStart: string; dayIndex: number; daysLeft: number }): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const [id, tpl] of boardTemplates(list, ctx)) {
+    const pw = list.find((x) => x.player.id === id)!;
+    out.set(id, fill(tpl, playerPick(pw, ctx, false).vars));
   }
   return out;
 }

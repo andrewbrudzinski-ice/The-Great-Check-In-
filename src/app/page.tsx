@@ -106,7 +106,7 @@ export default function Home() {
         )}
 
         {/* Your week */}
-        {mine && <YourWeek pw={mine} game={game} now={now} tz={tz} myWeek={myWeek} text={mine.paused ? "You're paused. Check in if you like; it won't count against you." : playerLine(mine, ctx, true)} />}
+        {mine && <YourWeek pw={mine} game={game} now={now} tz={tz} myWeek={myWeek} text={mine.paused ? "You're paused. Check in if you like; it won't count against you." : playerLine(mine, ctx, true, game.standings.filter((pw) => !pw.paused))} />}
 
         {/* The button */}
         <section className="mt-6" aria-label="Check in">
