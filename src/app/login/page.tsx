@@ -12,17 +12,34 @@ import type { Player } from "@/lib/types";
 export default function LoginPage() {
   const backend = getBackend();
   return (
-    <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6 py-12">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-        <p className="eyebrow">Members only</p>
-        <h1 className="font-display mt-3 text-[52px] leading-[0.88] font-black">
-          The Great
-          <br />
-          Check In
-        </h1>
-        <p className="mt-3 text-sm text-muted">{DEFAULT_SETTINGS.appSubtitle}</p>
-      </motion.div>
-      <div className="mt-10">{backend.mode === "demo" ? <DemoLogin /> : <NameLogin />}</div>
+    <div className="relative min-h-dvh overflow-hidden">
+      <div aria-hidden className="grid-texture pointer-events-none absolute inset-x-0 top-0 h-[70%]" />
+      <div aria-hidden className="pointer-events-none absolute -top-24 -left-40 h-[520px] w-[520px] rounded-full bg-[radial-gradient(closest-side,rgba(200,255,61,0.13),transparent)]" />
+      <div className="relative mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6 py-12">
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+          <p className="eyebrow !text-volt">Members only</p>
+          <h1 className="font-big mt-3 text-[clamp(76px,26vw,104px)] leading-[0.82] uppercase">
+            The Great
+            <br />
+            Check In
+          </h1>
+          {/* The brand mark: a week, four in, one to go. */}
+          <div aria-hidden className="mt-5 grid max-w-[220px] grid-cols-5 gap-[5px]">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <motion.span
+                key={i}
+                className={`h-2.5 rounded-[3px] ${i < 4 ? "bg-volt" : "shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.2)]"}`}
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                style={{ transformOrigin: "left" }}
+                transition={{ delay: 0.25 + i * 0.08, duration: 0.4, ease: [0.2, 0.8, 0.2, 1] }}
+              />
+            ))}
+          </div>
+          <p className="mt-4 text-[15px] text-ink-2">{DEFAULT_SETTINGS.appSubtitle}</p>
+        </motion.div>
+        <div className="mt-10">{backend.mode === "demo" ? <DemoLogin /> : <NameLogin />}</div>
+      </div>
     </div>
   );
 }
@@ -43,7 +60,7 @@ function DemoLogin() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.1 + i * 0.06 }}
             onClick={() => getBackend().signIn(p.id, "")}
-            className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface/70 px-4 py-3 text-left transition-colors hover:border-line-strong hover:bg-surface-2"
+            className="pressable flex w-full items-center gap-3 rounded-2xl bg-surface px-4 py-3 text-left shadow-[inset_0_0_0_1px_var(--color-line)] transition-colors hover:bg-surface-2"
           >
             <Avatar player={p} size={40} />
             <span className="font-display text-lg font-extrabold">{p.name}</span>
@@ -93,7 +110,7 @@ function NameLogin() {
     }
   }
 
-  const field = "w-full rounded-xl border border-line bg-surface px-4 py-3.5 text-ink placeholder:text-muted/70 outline-none focus:border-volt/60";
+  const field = "h-[52px] w-full rounded-2xl border border-line bg-surface px-4 text-ink placeholder:text-muted/80 outline-none transition-colors focus:border-volt/60";
 
   return (
     <form onSubmit={submit} className="space-y-3">
@@ -147,7 +164,10 @@ function NameLogin() {
           )}
         </p>
       )}
-      <button disabled={busy} className="mt-2 w-full rounded-2xl bg-volt py-4 font-display text-lg font-black tracking-wide text-volt-ink disabled:opacity-60">
+      <button
+        disabled={busy}
+        className="pressable mt-2 h-14 w-full rounded-2xl bg-[linear-gradient(180deg,#d8ff6e_0%,var(--color-volt)_55%,#b9f02c_100%)] font-display text-lg font-extrabold tracking-[0.02em] text-volt-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-3px_0_rgba(0,0,0,0.14),0_16px_36px_-16px_rgba(200,255,61,0.5)] disabled:opacity-60"
+      >
         {busy ? "…" : mode === "in" ? "Sign in" : "Join the club"}
       </button>
       <button

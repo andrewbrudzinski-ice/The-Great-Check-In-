@@ -71,7 +71,9 @@ export default function GymsPage() {
 
       {gyms.length === 0 && (
         <div className="py-12 text-center">
-          <p className="text-4xl">🏋️</p>
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-surface-2 text-volt shadow-[inset_0_0_0_1px_var(--color-line)]" aria-hidden>
+            <PinIcon size={24} />
+          </span>
           <p className="font-display mt-4 text-xl font-extrabold">No gyms yet.</p>
           <p className="mt-1 text-sm text-muted">Stand inside your gym and add it. Nobody can check in until there&apos;s one.</p>
         </div>

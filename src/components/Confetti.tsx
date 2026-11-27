@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from "motion/react";
 import { useMemo } from "react";
 
-const COLORS = ["#c8ff3d", "#3dd9ff", "#ff5c8a", "#facc15", "#ffffff"];
+const COLORS = ["#c8ff3d", "#f4f5f6", "#c8ff3d", "#ffb26b", "#8c929c"];
 
 /** A one-shot burst of ~36 pieces. Cheap: transforms + opacity only. */
 export function Confetti({ count = 36, spread = 260 }: { count?: number; spread?: number }) {

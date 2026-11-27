@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { computeGame } from "./game.ts";
-import { playerLines, troubleLines } from "./trash.ts";
+import { playerLine, playerLines, troubleLines } from "./trash.ts";
 import type { AppData, CheckIn, Player } from "./types.ts";
 import { midnightIn } from "./week.ts";
 
@@ -46,4 +46,19 @@ test("names still fill in", () => {
   const { g, ctx } = game([], "2026-10-06");
   const lines = playerLines(g.standings, ctx);
   for (const [, text] of lines) assert.ok(!text.includes("{"), text);
+});
+
+test("your line at the top of Home never repeats your line on the race board", () => {
+  // Wednesday, Andrew on 4/5 ("one more"): the pool where the clash showed up. Try many weeks.
+  for (let w = 0; w < 30; w++) {
+    const monday = new Date(Date.UTC(2026, 8, 7 + w * 7)).toISOString().slice(0, 10);
+    const day = (d: number) => new Date(Date.parse(monday) + d * 86400000).toISOString().slice(0, 10);
+    const ins = [0, 1, 2].flatMap((d) => [ci("Andrew", day(d), 7), ci("Andrew", day(d), 19)]).slice(0, 4);
+    for (const n of ["Mike", "John", "Chuck"]) ins.push(ci(n, day(0)));
+    const { g, ctx } = game(ins, day(2));
+    const me = g.standings.find((pw) => pw.player.id === "Andrew")!;
+    const board = playerLines(g.standings, ctx).get("Andrew")!;
+    const hero = playerLine(me, ctx, true, g.standings);
+    assert.notEqual(hero, board, `week of ${monday}`);
+  }
 });

@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "@/components/Avatar";
-import { SendIcon } from "@/components/Icons";
+import { ChatIcon, SendIcon } from "@/components/Icons";
 import { markChatRead } from "@/lib/chatRead";
 import { useGame } from "@/lib/store";
 import { REACTIONS, type ChatMessage, type Player } from "@/lib/types";
@@ -131,7 +131,9 @@ export default function ChatPage() {
 
       {messages.length === 0 ? (
         <div className="py-16 text-center">
-          <p className="text-4xl">💬</p>
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-surface-2 text-volt shadow-[inset_0_0_0_1px_var(--color-line)]" aria-hidden>
+            <ChatIcon size={24} />
+          </span>
           <p className="font-display mt-4 text-xl font-extrabold">Dead quiet in here.</p>
           <p className="mt-1 text-sm text-muted">Say something. Talk some trash. Plan a lift.</p>
         </div>
