@@ -20,8 +20,10 @@
 
   /* "Done / on track" is the same lime as progress. */
   --color-safe: #c8ff3d;
-  --color-one: #facc15;
-  --color-close: #fb923c;
+  /* Attention, not alarm (pending, manual, still open): a quiet light grey. */
+  --color-one: #d7dbe0;
+  /* Strict / hard mode shares the streak ember. */
+  --color-close: #ffb26b;
   /* Red: real danger and money owed, nothing else. */
   --color-problem: #ff4d6a;
 

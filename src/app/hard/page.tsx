@@ -383,7 +383,7 @@ function MyRun({ run, onRestart }: { run: RunState; onRestart: () => void }) {
         </div>
       ) : run.finished ? (
         <div className="mt-5 rounded-3xl bg-volt p-5 text-volt-ink">
-          <p className="font-display text-3xl leading-none font-black">{p.strict ? `${p.name.toUpperCase()}: COMPLETE 🏆` : "FINISHED."}</p>
+          <p className="font-display text-3xl leading-none font-black">{p.strict ? `${p.name.toUpperCase()}: COMPLETE` : "FINISHED."}</p>
           <p className="mt-2 text-sm font-medium opacity-75">
             {p.strict ? `${p.lengthDays} days. Zero misses. Legend.` : `${run.completeDays} of ${p.lengthDays} days done.`}
           </p>
@@ -582,7 +582,7 @@ function SquadRow({ run, player }: { run: RunState; player: Player }) {
             </span>
           ) : null}
           {run.completeDays > 0 && !run.failedOn && (
-            <span className="flex items-center justify-end gap-0.5 text-[11px] font-bold text-orange-300">
+            <span className="flex items-center justify-end gap-0.5 text-[11px] font-bold text-ember">
               <FlameIcon size={11} strokeWidth={2.4} />
               {run.completeDays}
             </span>

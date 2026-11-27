@@ -51,7 +51,9 @@ export default function ChallengesPage() {
 
       {states.length === 0 && (
         <div className="py-12 text-center">
-          <p className="text-4xl">💪</p>
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-surface-2 text-volt shadow-[inset_0_0_0_1px_var(--color-line)]" aria-hidden>
+            <FlameIcon size={26} />
+          </span>
           <p className="font-display mt-4 text-xl font-extrabold">No daily challenges yet.</p>
           <p className="mt-1 text-sm text-muted">Pushups, planks, steps, water… anything with a daily number.</p>
           <button onClick={() => setEditing("new")} className="mt-6 rounded-full bg-volt px-6 py-3 font-display font-black text-volt-ink">
@@ -358,7 +360,7 @@ function Row({
       {last7.map((d) => (
         <DayCell key={d.day} d={d} unit={unitFor(d)} />
       ))}
-      <span className={`self-center text-right text-sm font-black tabular ${streak ? "text-orange-300" : "text-muted"}`}>{streak}</span>
+      <span className={`self-center text-right text-sm font-black tabular ${streak ? "text-ember" : "text-muted"}`}>{streak}</span>
     </>
   );
 }

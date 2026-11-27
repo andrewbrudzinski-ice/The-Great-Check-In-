@@ -140,11 +140,11 @@ function GymMap() {
                   <p className="text-sm font-semibold">{p.name}</p>
                   <p className="truncate text-xs text-muted">
                     {c.gymName}
-                    {c.manual && <span className="text-one"> · ✍️ added by the owner</span>}
+                    {c.manual && <span className="ml-1 font-mono text-[9.5px] tracking-[0.06em] text-muted uppercase">· Manual</span>}
                     {c.distanceM != null && (
                       <>
                         {" · "}
-                        <span className="text-safe">✓</span> {formatDistance(c.distanceM)} from gym
+                        {formatDistance(c.distanceM)} from gym
                       </>
                     )}
                     {c.accuracy != null && ` · ±${formatDistance(c.accuracy)}`}
