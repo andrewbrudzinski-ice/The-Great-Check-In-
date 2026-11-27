@@ -217,8 +217,12 @@ export function ChallengeCard({ state, eyebrow, footer }: { state: ChallengeStat
 
 /** All active challenges for Home, plus a nudge to add one if there are none. */
 export function ChallengesHome() {
-  const { data } = useGame();
+  const { data, fresh } = useGame();
   const states = useChallengeStates();
+  // Opening on yesterday's saved copy: today's random pick isn't in it yet. Hold its place.
+  if (states.length === 0 && !fresh && data.settings.challengeRotation && data.challenges.some((c) => !c.archived)) {
+    return <div className="h-[300px] animate-shimmer rounded-2xl bg-[linear-gradient(110deg,var(--color-surface)_30%,var(--color-surface-2)_50%,var(--color-surface)_70%)] bg-[length:200%_100%]" aria-busy="true" />;
+  }
   if (states.length === 0) {
     return (
       <Link href="/challenges" className="flex items-center justify-between rounded-2xl border border-dashed border-line-strong px-4 py-3.5 text-sm text-muted hover:text-ink">

@@ -10,13 +10,15 @@ export type Session = { userId: string; email?: string };
 export interface Backend {
   mode: "supabase" | "demo";
   getSession(): Promise<Session | null>;
+  /** Who's logged in on this phone, read straight from storage (no network, may be expired). */
+  storedUserId(): string | null;
   onAuthChange(cb: (s: Session | null) => void): () => void;
   /** `name` is the player's sign-in name (or, for older accounts, an email). */
   signIn(name: string, password: string): Promise<void>;
   signUp(input: { name: string; password: string; inviteCode: string }): Promise<{ needsConfirmation: boolean }>;
   signOut(): Promise<void>;
-  /** Freeze any finished weeks into weekly_results. Idempotent. */
-  finalizeWeeks(): Promise<void>;
+  /** Freeze any finished weeks into weekly_results. Idempotent. Resolves to how many weeks it closed. */
+  finalizeWeeks(): Promise<number>;
   load(): Promise<AppData>;
   checkIn(fix: { latitude: number; longitude: number; accuracy: number | null }): Promise<CheckInResult>;
   updateSettings(patch: Partial<Settings>): Promise<void>;

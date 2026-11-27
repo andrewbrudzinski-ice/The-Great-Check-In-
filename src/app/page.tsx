@@ -23,23 +23,24 @@ import { DAY_SHORT, dayIndex, formatDuration, formatTime, isoWeekNumber, localDa
 const SEEN_KEY = "tgci-reveal-seen";
 
 export default function Home() {
-  const { data, game, me, now } = useGame();
+  const { data, game, me, now, fresh } = useGame();
   const s = data.settings;
   const tz = s.timezone;
   const mine = game.standings.find((r) => r.player.id === me?.id);
   const ctx = { weekStart: game.weekStart, dayIndex: game.dayIndex, daysLeft: game.daysLeft };
 
-  // End-of-week reveal: shown once per finished week per device.
+  // End-of-week reveal: shown once per finished week per device, and only from fresh
+  // data (never from the phone's saved copy, which may miss Sunday-night check-ins).
   const [revealOpen, setRevealOpen] = useState(false);
   const last = game.lastFinishedWeek;
   useEffect(() => {
-    if (!last) return;
+    if (!last || !fresh) return;
     try {
       if (localStorage.getItem(SEEN_KEY) !== last.weekStart) setRevealOpen(true);
     } catch {
       /* storage blocked: skip the auto reveal */
     }
-  }, [last]);
+  }, [last, fresh]);
   const closeReveal = () => {
     setRevealOpen(false);
     try {

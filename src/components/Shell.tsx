@@ -7,7 +7,7 @@ import "@/lib/install"; // start listening for the install prompt as early as po
 import { useApp } from "@/lib/store";
 import { BottomNav } from "./BottomNav";
 import { AlertIcon } from "./Icons";
-import { OfflineBanner } from "./Offline";
+import { OfflineBanner, useOnline } from "./Offline";
 
 /** Auth gate + chrome. Every screen except /login renders only with data. */
 export function Shell({ children }: { children: ReactNode }) {
@@ -20,7 +20,8 @@ export function Shell({ children }: { children: ReactNode }) {
 }
 
 function Chrome({ children }: { children: ReactNode }) {
-  const { status, error, refresh, mode } = useApp();
+  const { status, error, refresh, mode, fresh, refreshError } = useApp();
+  const online = useOnline();
   const pathname = usePathname();
   const router = useRouter();
   const isLogin = pathname === "/login";
@@ -52,6 +53,13 @@ function Chrome({ children }: { children: ReactNode }) {
 
   return (
     <>
+      {/* Showing the phone's saved copy: a thin lime bar while the fresh data comes in
+          (not while offline or after a failed refresh: those have their own notice). */}
+      {!fresh && !refreshError && online && (
+        <div className="fixed inset-x-0 top-0 z-[70] h-[2px] overflow-hidden" aria-hidden>
+          <div className="h-full w-1/3 animate-[navload_0.9s_ease-in-out_infinite] rounded-full bg-volt" />
+        </div>
+      )}
       {mode === "demo" && (
         <div className="fixed inset-x-0 top-0 z-40 flex justify-center pt-[max(var(--safe-top),4px)] pointer-events-none lg:left-[232px]">
           <span className="rounded-b-lg bg-volt/10 px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-volt/80 uppercase backdrop-blur">
