@@ -9,6 +9,7 @@ import { ChallengesHome } from "@/components/Challenges";
 import { CheckInButton } from "@/components/CheckIn";
 import { ChevronRight, ClockIcon, GearIcon, HistoryIcon } from "@/components/Icons";
 import { InstallBanner } from "@/components/InstallApp";
+import { Mark } from "@/components/Mark";
 import { RollingNumber } from "@/components/RollingNumber";
 import { WeekGrid } from "@/components/WeekGrid";
 import { WeekReveal } from "@/components/WeekReveal";
@@ -74,7 +75,10 @@ export default function Home() {
         {/* Header */}
         <header className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="truncate font-display text-[15px] font-extrabold tracking-[0.02em] uppercase">{s.appTitle}</h1>
+            <h1 className="flex items-center gap-2 font-display text-[15px] font-extrabold tracking-[0.02em] uppercase">
+              <Mark size={18} className="shrink-0" />
+              <span className="truncate">{s.appTitle}</span>
+            </h1>
             <p className="eyebrow mt-1 truncate">
               Week {isoWeekNumber(game.weekStart)} <span className="text-faint">/</span> {weekRangeLabel(game.weekStart)}
             </p>
@@ -105,137 +109,144 @@ export default function Home() {
           </Link>
         )}
 
-        {/* Your week */}
-        {mine && <YourWeek pw={mine} game={game} now={now} tz={tz} myWeek={myWeek} text={mine.paused ? "You're paused. Check in if you like; it won't count against you." : playerLine(mine, ctx, true, game.standings.filter((pw) => !pw.paused))} />}
+        {/* Phones: one column. Widest screens: you and the race on the left, the rest beside it. */}
+        <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,400px)] xl:items-start xl:gap-x-14">
+          <div>
+            {/* Your week */}
+            {mine && <YourWeek pw={mine} game={game} now={now} tz={tz} myWeek={myWeek} text={mine.paused ? "You're paused. Check in if you like; it won't count against you." : playerLine(mine, ctx, true, game.standings.filter((pw) => !pw.paused))} />}
 
-        {/* The button */}
-        <section className="mt-6" aria-label="Check in">
-          <CheckInButton />
-        </section>
+            {/* The button */}
+            <section className="mt-6" aria-label="Check in">
+              <CheckInButton />
+            </section>
 
-        {/* The race */}
-        <section className="mt-11" aria-label="This week">
-          <SectionTitle
-            index="01"
-            right={<span className="eyebrow">{inDanger ? `${inDanger} in danger` : "Nobody in danger"}</span>}
-          >
-            The race
-          </SectionTitle>
-          {game.everyoneSafe && (
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="mb-2 rounded-2xl bg-volt px-4 py-2.5 text-center font-display text-sm font-black tracking-[0.08em] text-volt-ink uppercase"
-            >
-              {line("everyoneSafe", game.weekStart)}
-            </motion.div>
-          )}
-          <Board />
-        </section>
-
-        {/* Who went when */}
-        <section className="mt-10" aria-label="Who went when">
-          <SectionTitle index="02">Who went when</SectionTitle>
-          <WeekGrid />
-        </section>
-
-        {/* Daily challenges */}
-        <section className="mt-11" aria-label="Daily challenges">
-          <SectionTitle index="03">Daily challenge</SectionTitle>
-          <ChallengesHome />
-        </section>
-
-        <InstallBanner />
-
-        {/* Today */}
-        <section className="mt-11" aria-label="Today">
-          <SectionTitle
-            index="04"
-            right={
-              <Link href="/map" className="font-mono text-[10.5px] tracking-[0.06em] text-muted uppercase hover:text-ink">
-                Map →
-              </Link>
-            }
-          >
-            Today
-          </SectionTitle>
-          {today.length === 0 ? (
-            <div className="flex items-center gap-4 rounded-2xl bg-[repeating-linear-gradient(135deg,rgb(255_255_255/0.025)_0_1px,transparent_1px_8px)] px-4 py-4 shadow-[inset_0_0_0_1px_var(--color-line)]">
-              <span className="font-big text-[44px] leading-none text-surface-3" aria-hidden>
-                0
-              </span>
-              <div className="min-w-0">
-                <p className="text-[14.5px] font-semibold">{line("quiet", game.today)}</p>
-                <p className="mt-0.5 text-[12.5px] text-muted">First one in takes the top of the feed.</p>
-              </div>
-            </div>
-          ) : (
-            <ul>
-              {today.map((c) => {
-                const p = playerById(c.userId);
-                if (!p) return null;
-                return (
-                  <motion.li key={c.id} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}>
-                    <Link
-                      href={`/map?checkin=${c.id}`}
-                      className="flex items-center gap-3 border-b border-line py-2.5 transition-colors last:border-b-0 active:bg-white/[0.02]"
-                      aria-label={`${p.name}'s check-in receipt`}
-                    >
-                      <span className="w-[58px] shrink-0 font-mono text-[11px] text-muted tabular">{formatTime(c.checkedInAt, tz)}</span>
-                      <Avatar player={p} size={28} />
-                      <span className="min-w-0 flex-1 truncate text-sm">
-                        <b className="font-semibold">{p.name}</b> <span className="text-muted">at {c.gymName}</span>
-                      </span>
-                      {c.manual && <span className="font-mono text-[9.5px] tracking-[0.06em] text-muted uppercase">Manual</span>}
-                      <ChevronRight size={15} className="text-faint" />
-                    </Link>
-                  </motion.li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-
-        {/* Stakes */}
-        <section className="mt-11" aria-label="On the line">
-          <SectionTitle index="05">On the line</SectionTitle>
-          <Link href="/punishments" className="pressable relative block rounded-[22px] bg-surface shadow-[inset_0_0_0_1px_var(--color-line)]">
-            <div className="px-5 pt-5 pb-4">
-              <p className="eyebrow">If anyone misses by Sunday</p>
-              <p className="font-big mt-2.5 text-[34px] leading-[0.98]">
-                <span className="text-volt">“</span>
-                {s.punishment}
-                <span className="text-volt">”</span>
-              </p>
-              <p className="mt-2.5 text-[12.5px] leading-relaxed text-muted">
-                If <b className="text-ink-2">anyone</b> misses their weekly goal by Sunday night, the whole group does it.
-              </p>
-            </div>
-            <div aria-hidden className="mx-3.5 h-px bg-[linear-gradient(90deg,rgb(255_255_255/0.2)_50%,transparent_50%)] bg-[length:8px_1px]" />
-            <span aria-hidden className="absolute bottom-[47px] -left-[9px] h-[18px] w-[18px] rounded-full bg-bg" />
-            <span aria-hidden className="absolute -right-[9px] bottom-[47px] h-[18px] w-[18px] rounded-full bg-bg" />
-            <div className="flex h-14 items-center justify-between px-5">
-              {game.owed.length === 0 ? (
-                <span className="text-sm text-volt">✓ All square. Nothing owed.</span>
-              ) : (
-                <span className="flex items-baseline gap-2 text-sm">
-                  <b className="font-big text-[28px] leading-none text-problem">{game.owed.length}</b> punishment{game.owed.length === 1 ? "" : "s"} owed
-                </span>
+            {/* The race */}
+            <section className="mt-11" aria-label="This week">
+              <SectionTitle
+                index="01"
+                right={<span className="eyebrow">{inDanger ? `${inDanger} in danger` : "Nobody in danger"}</span>}
+              >
+                The race
+              </SectionTitle>
+              {game.everyoneSafe && (
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="mb-2 rounded-2xl bg-volt px-4 py-2.5 text-center font-display text-sm font-black tracking-[0.08em] text-volt-ink uppercase"
+                >
+                  {line("everyoneSafe", game.weekStart)}
+                </motion.div>
               )}
-              <span className="font-mono text-[10.5px] tracking-[0.06em] text-muted uppercase">Tracker →</span>
-            </div>
-          </Link>
-        </section>
+              <Board />
+            </section>
+          </div>
 
-        {last && (
-          <button
-            onClick={() => setRevealOpen(true)}
-            className="mx-auto mt-6 flex items-center gap-2 px-3 py-2.5 text-[12.5px] font-medium text-muted transition-colors hover:text-ink"
-          >
-            <HistoryIcon size={15} />
-            Replay last week&apos;s results
-          </button>
-        )}
+          <div>
+            {/* Who went when */}
+            <section className="mt-10 xl:mt-7" aria-label="Who went when">
+              <SectionTitle index="02">Who went when</SectionTitle>
+              <WeekGrid />
+            </section>
+
+            {/* Daily challenges */}
+            <section className="mt-11" aria-label="Daily challenges">
+              <SectionTitle index="03">Daily challenge</SectionTitle>
+              <ChallengesHome />
+            </section>
+
+            <InstallBanner />
+
+            {/* Today */}
+            <section className="mt-11" aria-label="Today">
+              <SectionTitle
+                index="04"
+                right={
+                  <Link href="/map" className="font-mono text-[10.5px] tracking-[0.06em] text-muted uppercase hover:text-ink">
+                    Map →
+                  </Link>
+                }
+              >
+                Today
+              </SectionTitle>
+              {today.length === 0 ? (
+                <div className="flex items-center gap-4 rounded-2xl bg-[repeating-linear-gradient(135deg,rgb(255_255_255/0.025)_0_1px,transparent_1px_8px)] px-4 py-4 shadow-[inset_0_0_0_1px_var(--color-line)]">
+                  <span className="font-big text-[44px] leading-none text-surface-3" aria-hidden>
+                    0
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[14.5px] font-semibold">{line("quiet", game.today)}</p>
+                    <p className="mt-0.5 text-[12.5px] text-muted">First one in takes the top of the feed.</p>
+                  </div>
+                </div>
+              ) : (
+                <ul>
+                  {today.map((c) => {
+                    const p = playerById(c.userId);
+                    if (!p) return null;
+                    return (
+                      <motion.li key={c.id} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}>
+                        <Link
+                          href={`/map?checkin=${c.id}`}
+                          className="flex items-center gap-3 border-b border-line py-2.5 transition-colors last:border-b-0 active:bg-white/[0.02]"
+                          aria-label={`${p.name}'s check-in receipt`}
+                        >
+                          <span className="w-[58px] shrink-0 font-mono text-[11px] text-muted tabular">{formatTime(c.checkedInAt, tz)}</span>
+                          <Avatar player={p} size={28} />
+                          <span className="min-w-0 flex-1 truncate text-sm">
+                            <b className="font-semibold">{p.name}</b> <span className="text-muted">at {c.gymName}</span>
+                          </span>
+                          {c.manual && <span className="font-mono text-[9.5px] tracking-[0.06em] text-muted uppercase">Manual</span>}
+                          <ChevronRight size={15} className="text-faint" />
+                        </Link>
+                      </motion.li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+
+            {/* Stakes */}
+            <section className="mt-11" aria-label="On the line">
+              <SectionTitle index="05">On the line</SectionTitle>
+              <Link href="/punishments" className="pressable relative block rounded-[22px] bg-surface shadow-[inset_0_0_0_1px_var(--color-line)]">
+                <div className="px-5 pt-5 pb-4">
+                  <p className="eyebrow">If anyone misses by Sunday</p>
+                  <p className="font-big mt-2.5 text-[34px] leading-[0.98]">
+                    <span className="text-volt">“</span>
+                    {s.punishment}
+                    <span className="text-volt">”</span>
+                  </p>
+                  <p className="mt-2.5 text-[12.5px] leading-relaxed text-muted">
+                    If <b className="text-ink-2">anyone</b> misses their weekly goal by Sunday night, the whole group does it.
+                  </p>
+                </div>
+                <div aria-hidden className="mx-3.5 h-px bg-[linear-gradient(90deg,rgb(255_255_255/0.2)_50%,transparent_50%)] bg-[length:8px_1px]" />
+                <span aria-hidden className="absolute bottom-[47px] -left-[9px] h-[18px] w-[18px] rounded-full bg-bg" />
+                <span aria-hidden className="absolute -right-[9px] bottom-[47px] h-[18px] w-[18px] rounded-full bg-bg" />
+                <div className="flex h-14 items-center justify-between px-5">
+                  {game.owed.length === 0 ? (
+                    <span className="text-sm text-volt">✓ All square. Nothing owed.</span>
+                  ) : (
+                    <span className="flex items-baseline gap-2 text-sm">
+                      <b className="font-big text-[28px] leading-none text-problem">{game.owed.length}</b> punishment{game.owed.length === 1 ? "" : "s"} owed
+                    </span>
+                  )}
+                  <span className="font-mono text-[10.5px] tracking-[0.06em] text-muted uppercase">Tracker →</span>
+                </div>
+              </Link>
+            </section>
+
+            {last && (
+              <button
+                onClick={() => setRevealOpen(true)}
+                className="mx-auto mt-6 flex items-center gap-2 px-3 py-2.5 text-[12.5px] font-medium text-muted transition-colors hover:text-ink"
+              >
+                <HistoryIcon size={15} />
+                Replay last week&apos;s results
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       <WeekReveal week={last} open={revealOpen} onClose={closeReveal} streaks={lastWeekStreaks} />

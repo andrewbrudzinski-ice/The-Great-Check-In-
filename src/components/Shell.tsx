@@ -24,6 +24,7 @@ function Chrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isLogin = pathname === "/login";
+  const wide = pathname === "/" || pathname.startsWith("/map");
 
   useEffect(() => {
     if (status === "signedOut" && !isLogin) router.replace("/login");
@@ -52,16 +53,23 @@ function Chrome({ children }: { children: ReactNode }) {
   return (
     <>
       {mode === "demo" && (
-        <div className="fixed inset-x-0 top-0 z-40 flex justify-center pt-[max(var(--safe-top),4px)] pointer-events-none">
+        <div className="fixed inset-x-0 top-0 z-40 flex justify-center pt-[max(var(--safe-top),4px)] pointer-events-none lg:left-[232px]">
           <span className="rounded-b-lg bg-volt/10 px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-volt/80 uppercase backdrop-blur">
             Demo mode
           </span>
         </div>
       )}
-      <main className="mx-auto w-full max-w-lg px-4 pt-[calc(var(--safe-top)+20px)] pb-[calc(var(--safe-bottom)+104px)]">
-        <OfflineBanner />
-        {children}
-      </main>
+      {/* On wide screens the nav sits on the left; on the widest, Home and the Map use two columns. */}
+      <div className="lg:pl-[232px]">
+        <main
+          className={`mx-auto w-full max-w-lg px-4 pt-[calc(var(--safe-top)+20px)] pb-[calc(var(--safe-bottom)+104px)] lg:pt-10 lg:pb-12 ${
+            wide ? "xl:max-w-[1120px] xl:px-10" : ""
+          }`}
+        >
+          <OfflineBanner />
+          {children}
+        </main>
+      </div>
       <BottomNav />
     </>
   );

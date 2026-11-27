@@ -3,6 +3,7 @@
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Avatar } from "@/components/Avatar";
+import { Mark } from "@/components/Mark";
 import { getBackend } from "@/lib/backend";
 import { resetDemo } from "@/lib/backend/demo";
 import { DEFAULT_SETTINGS } from "@/lib/config";
@@ -17,25 +18,13 @@ export default function LoginPage() {
       <div aria-hidden className="pointer-events-none absolute -top-24 -left-40 h-[520px] w-[520px] rounded-full bg-[radial-gradient(closest-side,rgba(200,255,61,0.13),transparent)]" />
       <div className="relative mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6 py-12">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+          <Mark size={52} draw className="mb-7" />
           <p className="eyebrow !text-volt">Members only</p>
           <h1 className="font-big mt-3 text-[clamp(76px,26vw,104px)] leading-[0.82] uppercase">
             The Great
             <br />
             Check In
           </h1>
-          {/* The brand mark: a week, four in, one to go. */}
-          <div aria-hidden className="mt-5 grid max-w-[220px] grid-cols-5 gap-[5px]">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <motion.span
-                key={i}
-                className={`h-2.5 rounded-[3px] ${i < 4 ? "bg-volt" : "shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.2)]"}`}
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                style={{ transformOrigin: "left" }}
-                transition={{ delay: 0.25 + i * 0.08, duration: 0.4, ease: [0.2, 0.8, 0.2, 1] }}
-              />
-            ))}
-          </div>
           <p className="mt-4 text-[15px] text-ink-2">{DEFAULT_SETTINGS.appSubtitle}</p>
         </motion.div>
         <div className="mt-10">{backend.mode === "demo" ? <DemoLogin /> : <NameLogin />}</div>
