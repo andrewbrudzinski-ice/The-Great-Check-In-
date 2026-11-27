@@ -118,7 +118,7 @@ export function StreakBadge({ weeks, size = "sm" }: { weeks: number; size?: "sm"
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular ${
-        weeks === 0 ? "text-muted" : hot ? "bg-orange-500/15 text-orange-300" : "bg-surface-3 text-ink-2"
+        weeks === 0 ? "text-muted" : hot ? "bg-ember/15 text-ember" : "bg-surface-3 text-ink-2"
       }`}
       title={`${weeks}-week streak`}
     >
@@ -201,10 +201,13 @@ export function Sheet({ open, onClose, children }: { open: boolean; onClose: () 
   );
 }
 
-export function SectionTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
+export function SectionTitle({ children, right, index }: { children: ReactNode; right?: ReactNode; index?: string }) {
   return (
     <div className="mb-3 flex items-center gap-3">
-      <h2 className="eyebrow rule flex-1">{children}</h2>
+      <h2 className="eyebrow rule flex-1">
+        {index && <span className="-mr-1.5 text-volt">{index}</span>}
+        {children}
+      </h2>
       {right}
     </div>
   );

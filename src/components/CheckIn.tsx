@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { cooldownRemaining } from "@/lib/game";
 import { approvedGyms } from "@/lib/gyms";
@@ -11,7 +11,7 @@ import { useGame, type CheckInOutcome } from "@/lib/store";
 import { line } from "@/lib/trash";
 import type { CheckIn } from "@/lib/types";
 import { formatDateTime, formatDuration, formatTime } from "@/lib/week";
-import { Confetti } from "./Confetti";
+import { RollingNumber } from "./RollingNumber";
 import { CheckIcon, ClockIcon, CrosshairIcon, PinIcon } from "./Icons";
 import { Sheet } from "./ui";
 import { haptics } from "@/lib/haptics";
@@ -53,32 +53,30 @@ export function CheckInButton() {
   return (
     <>
       <div className="relative">
-        {!disabled && (
-          <span aria-hidden className="absolute inset-0 animate-pulse-ring rounded-[28px] bg-volt/40" />
-        )}
         <motion.button
           onClick={go}
           disabled={disabled}
           whileTap={disabled ? undefined : { scale: 0.97 }}
-          className={`relative flex h-[84px] w-full items-center justify-center gap-3 overflow-hidden rounded-[28px] font-display text-[26px] font-black tracking-[0.04em] uppercase transition-colors ${
+          transition={{ type: "spring", stiffness: 600, damping: 30 }}
+          className={`relative flex h-[80px] w-full items-center justify-center gap-3 overflow-hidden rounded-[24px] font-display text-[23px] font-black tracking-[0.05em] uppercase transition-[background,color,box-shadow] duration-300 ${
             cooldown > 0 || noGym
-              ? "bg-surface-2 text-ink-2 ring-1 ring-line-strong"
-              : "bg-volt text-volt-ink shadow-[0_10px_40px_-8px_rgba(200,255,61,0.55)]"
+              ? "bg-surface-2 text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)]"
+              : "bg-[linear-gradient(180deg,#d8ff6e_0%,var(--color-volt)_55%,#b9f02c_100%)] text-volt-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-3px_0_rgba(0,0,0,0.14),0_18px_40px_-16px_rgba(200,255,61,0.55)]"
           }`}
           aria-live="polite"
         >
           {busy && (
             <span
               aria-hidden
-              className="absolute inset-0 animate-shimmer bg-[linear-gradient(110deg,transparent_30%,rgba(255,255,255,0.45)_50%,transparent_70%)] bg-[length:200%_100%]"
+              className="absolute inset-0 animate-shimmer bg-[linear-gradient(110deg,transparent_30%,rgba(255,255,255,0.5)_50%,transparent_70%)] bg-[length:200%_100%]"
             />
           )}
           {busy ? (
-            <CrosshairIcon size={28} strokeWidth={2.4} className="animate-spin [animation-duration:2.5s]" />
+            <CrosshairIcon size={26} strokeWidth={2.3} className="animate-spin [animation-duration:2.5s]" />
           ) : cooldown > 0 ? (
-            <CheckIcon size={26} strokeWidth={2.6} className="text-safe" />
+            <CheckIcon size={26} strokeWidth={2.6} className="text-volt" />
           ) : (
-            <PinIcon size={26} strokeWidth={2.6} />
+            <CrosshairIcon size={26} strokeWidth={2.3} />
           )}
           <span className="relative">{label}</span>
         </motion.button>
@@ -143,12 +141,22 @@ function SuccessOverlay({
   const justSafe = count === required;
   const already = count > required;
   const seed = success?.checkIn.id ?? "";
+  // The count shows the old number first, then rolls to the new one.
+  const [rolledFor, setRolledFor] = useState<string | null>(null);
+  const shown = success && rolledFor === success.checkIn.id ? count : (success?.countBefore ?? 0);
+  useEffect(() => {
+    if (!success) return;
+    const id = success.checkIn.id;
+    const t = setTimeout(() => setRolledFor(id), 450);
+    return () => clearTimeout(t);
+  }, [success]);
+  const segments = Math.min(Math.max(required, 1), 14);
 
   return (
     <AnimatePresence>
       {success && (
         <motion.div
-          className="fixed inset-0 z-50 grid place-items-center overflow-hidden bg-bg/95 px-6 backdrop-blur-md"
+          className="fixed inset-0 z-50 overflow-y-auto bg-bg/95 backdrop-blur-md"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -157,21 +165,26 @@ function SuccessOverlay({
           aria-modal="true"
           aria-label="Checked in"
         >
-          <div className="relative flex w-full max-w-sm flex-col items-center text-center">
-            <div className="relative grid place-items-center">
-              <motion.span
-                className="absolute h-40 w-40 rounded-full border-2 border-volt"
-                initial={{ scale: 0.6, opacity: 0.9 }}
-                animate={{ scale: 2.2, opacity: 0 }}
-                transition={{ duration: 1.1, ease: "easeOut" }}
-              />
+          <div className="relative mx-auto flex min-h-full w-full max-w-sm flex-col items-center justify-center px-6 pt-[calc(var(--safe-top)+32px)] pb-[calc(var(--safe-bottom)+28px)] text-center">
+            <div className="relative grid h-36 w-36 place-items-center">
+              <span aria-hidden className="absolute -inset-12 rounded-full bg-[radial-gradient(closest-side,rgba(200,255,61,0.28),transparent)]" />
+              {[0, 1].slice(0, justSafe ? 2 : 1).map((i) => (
+                <motion.span
+                  key={i}
+                  aria-hidden
+                  className="absolute inset-2 rounded-full border-2 border-volt"
+                  initial={{ scale: 0.6, opacity: 0.8 }}
+                  animate={{ scale: 2.3, opacity: 0 }}
+                  transition={{ duration: 1, delay: 0.15 + i * 0.18, ease: [0.1, 0.7, 0.2, 1] }}
+                />
+              ))}
               <motion.div
-                className="grid h-32 w-32 place-items-center rounded-full bg-volt text-volt-ink shadow-[0_0_80px_-10px_rgba(200,255,61,0.8)]"
-                initial={{ scale: 0, rotate: -30 }}
-                animate={{ scale: 1, rotate: 0 }}
-                transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                className="relative grid h-28 w-28 place-items-center rounded-full bg-volt text-volt-ink"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 320, damping: 16 }}
               >
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <svg width="58" height="58" viewBox="0 0 24 24" fill="none" aria-hidden>
                   <motion.path
                     d="m5 12.5 4.5 4.5L19 7.5"
                     stroke="currentColor"
@@ -180,101 +193,84 @@ function SuccessOverlay({
                     strokeLinejoin="round"
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
-                    transition={{ delay: 0.25, duration: 0.4, ease: "easeOut" }}
+                    transition={{ delay: 0.22, duration: 0.42, ease: "easeOut" }}
                   />
                 </svg>
               </motion.div>
-              {justSafe && <Confetti count={44} spread={300} />}
             </div>
 
             <motion.h2
-              className="font-big mt-10 text-[clamp(2.25rem,13vw,3.75rem)] leading-none whitespace-nowrap"
-              initial={{ y: 20, opacity: 0 }}
+              className="font-big mt-8 text-[clamp(2rem,11vw,3.5rem)] leading-none whitespace-nowrap uppercase"
+              initial={{ y: 14, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.2 }}
+              transition={{ delay: 0.18 }}
             >
-              CHECKED IN.
+              {justSafe ? "Week secured" : "Checked in"}
             </motion.h2>
-            <motion.p className="mt-3 text-lg text-ink-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
+            <motion.p className="mt-3 text-[15px] text-ink-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
               {justSafe ? line("safeLine", seed) : line("successLine", seed)}
             </motion.p>
 
-            <motion.div
-              className="mt-8 flex items-center gap-3 rounded-2xl border border-line bg-surface/80 px-5 py-3"
-              initial={{ y: 16, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.5 }}
-            >
-              <span className="font-display tabular text-4xl font-black">
-                {count}
-                <span className="text-muted">/{required}</span>
+            <motion.div className="mt-7 flex flex-col items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }}>
+              <span className="font-big flex items-end text-[88px] leading-[0.82]">
+                <RollingNumber value={shown} />
+                <span className="pb-1 text-[34px] text-faint">/{required}</span>
               </span>
-              <span className="text-left text-xs leading-tight text-muted">
-                {justSafe ? (
-                  <span className="font-display text-base font-black tracking-wide text-safe">SAFE ✓</span>
-                ) : already ? (
-                  <>
-                    Goal already secured.
-                    <br />
-                    This one&apos;s for the ego.
-                  </>
-                ) : (
-                  <>
-                    {required - count} more
-                    <br />
-                    this week
-                  </>
-                )}
-              </span>
+              <div className="mt-4 grid w-56 gap-1" style={{ gridTemplateColumns: `repeat(${segments}, minmax(0, 1fr))` }} aria-hidden>
+                {Array.from({ length: segments }, (_, i) => (
+                  <span key={i} className="relative h-2 overflow-hidden rounded-[3px] bg-surface-3">
+                    <span
+                      className="absolute inset-y-0 left-0 rounded-[3px] bg-volt transition-[width] duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+                      style={{ width: i < shown ? "100%" : "0%" }}
+                    />
+                  </span>
+                ))}
+              </div>
+              <p className="mt-3 font-mono text-[11px] tracking-[0.06em] text-muted uppercase">
+                {justSafe ? "Safe this week" : already ? "Goal already secured · this one's for the ego" : `${required - count} more this week`}
+              </p>
             </motion.div>
 
             <motion.dl
-              className="mt-6 space-y-1.5 text-sm text-muted"
+              className="mt-7 w-full space-y-1.5 border-t border-line pt-4 font-mono text-[11px] text-muted"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.65 }}
+              transition={{ delay: 0.55 }}
             >
               <div className="flex items-center justify-center gap-1.5">
-                <ClockIcon size={14} />
+                <ClockIcon size={13} />
                 <dt className="sr-only">Time</dt>
                 <dd className="text-ink-2">{formatDateTime(success.checkIn.checkedInAt, tz)}</dd>
               </div>
               <div className="flex items-center justify-center gap-1.5">
-                <PinIcon size={14} />
+                <PinIcon size={13} />
                 <dt className="sr-only">Location</dt>
                 <dd>
                   <span className="text-ink-2">{success.checkIn.gymName}</span>
                   {success.checkIn.distanceM != null && <> · {formatDistance(success.checkIn.distanceM)} from the door</>}
                 </dd>
               </div>
-              <div className="tabular text-[11px]">
+              <div className="tabular">
                 {success.checkIn.latitude.toFixed(5)}, {success.checkIn.longitude.toFixed(5)}
               </div>
             </motion.dl>
 
-            <motion.button
-              onClick={(e) => {
-                e.stopPropagation();
-                const id = success.checkIn.id;
-                onClose();
-                router.push(`/map?checkin=${id}`);
-              }}
-              className="mt-6 text-xs font-semibold text-ink-2 underline underline-offset-4 hover:text-ink"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.8 }}
-            >
-              View check-in receipt on the map
-            </motion.button>
-            <motion.button
-              className="mt-6 rounded-full bg-surface-3 px-8 py-3 font-display text-sm font-bold tracking-wide"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.9 }}
-              onClick={onClose}
-            >
-              Back to the board
-            </motion.button>
+            <motion.div className="mt-7 flex w-full flex-col gap-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }}>
+              <button className="pressable h-[54px] w-full rounded-2xl bg-ink text-[16px] font-semibold text-bg" onClick={onClose}>
+                Back to the board
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const id = success.checkIn.id;
+                  onClose();
+                  router.push(`/map?checkin=${id}`);
+                }}
+                className="py-2 text-[13px] font-medium text-muted hover:text-ink"
+              >
+                View check-in receipt on the map
+              </button>
+            </motion.div>
           </div>
         </motion.div>
       )}
