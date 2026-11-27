@@ -7,7 +7,7 @@ import { useGame } from "@/lib/store";
 import { playerLines } from "@/lib/trash";
 import { Avatar } from "./Avatar";
 import { RollingNumber } from "./RollingNumber";
-import { StreakBadge } from "./ui";
+import { StreakBadge, WeekTag } from "./ui";
 
 /**
  * The board on Home, drawn as a race: everyone's avatar sits on a track and
@@ -47,7 +47,6 @@ function Lane({ pw, isMe, streak, text, daysLeft }: { pw: PlayerWeek; isMe: bool
   const openDays = Math.max(0, daysLeft - (pw.checkedInToday ? 1 : 0));
   // One gate per check-in on the way to the goal (skipped for very high goals).
   const gates = pw.required > 1 && pw.required <= 12 ? Array.from({ length: pw.required - 1 }, (_, i) => (i + 1) / pw.required) : [];
-  const extra = pw.count - pw.required;
 
   return (
     <motion.li
@@ -71,7 +70,7 @@ function Lane({ pw, isMe, streak, text, daysLeft }: { pw: PlayerWeek; isMe: bool
               <RollingNumber value={pw.count} />
               <span className="text-[18px] text-faint">/{pw.required}</span>
             </span>
-            <Tag pw={pw} danger={danger} extra={extra} />
+            <WeekTag pw={pw} />
           </div>
         </div>
 
@@ -104,23 +103,4 @@ function Lane({ pw, isMe, streak, text, daysLeft }: { pw: PlayerWeek; isMe: bool
       </Link>
     </motion.li>
   );
-}
-
-function Tag({ pw, danger, extra }: { pw: PlayerWeek; danger: boolean; extra: number }) {
-  const base = "rounded-[4px] px-1.5 py-[2px] font-mono text-[9.5px] font-medium tracking-[0.06em] whitespace-nowrap uppercase";
-  if (pw.paused)
-    return (
-      <span className={`${base} bg-surface-3 text-muted`} title="Paused by an admin. This week doesn't count">
-        Paused
-      </span>
-    );
-  if (pw.warmup)
-    return (
-      <span className={`${base} bg-surface-3 text-muted`} title="Joined mid-week. This week doesn't count">
-        Warm-up
-      </span>
-    );
-  if (danger) return <span className={`${base} bg-problem text-white`}>Danger</span>;
-  if (pw.completed) return <span className={`${base} text-volt`}>{extra > 0 ? `Safe · +${extra}` : "Safe ✓"}</span>;
-  return <span className={`${base} ${pw.remaining === 1 ? "text-volt" : "text-muted"}`}>{pw.remaining === 1 ? "1 more" : `${pw.remaining} to go`}</span>;
 }

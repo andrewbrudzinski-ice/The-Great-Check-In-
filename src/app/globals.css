@@ -18,7 +18,8 @@
   /* Ember: streaks only. */
   --color-ember: #ffb26b;
 
-  --color-safe: #4ade80;
+  /* "Done / on track" is the same lime as progress. */
+  --color-safe: #c8ff3d;
   --color-one: #facc15;
   --color-close: #fb923c;
   /* Red: real danger and money owed, nothing else. */
