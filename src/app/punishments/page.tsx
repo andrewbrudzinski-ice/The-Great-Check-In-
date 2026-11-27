@@ -69,7 +69,7 @@ export default function PunishmentsPage() {
                 key={game.owed.length}
                 initial={{ scale: 1.4, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="font-display tabular text-6xl leading-none font-black text-problem"
+                className="font-big text-[68px] leading-none text-problem"
               >
                 {game.owed.length}
               </motion.span>
@@ -236,7 +236,7 @@ export default function PunishmentsPage() {
 function Stat({ label, value, tone }: { label: string; value: number; tone?: "safe" | "problem" }) {
   return (
     <div>
-      <dd className="font-display tabular text-3xl font-black" style={tone ? { color: `var(--color-${tone})` } : undefined}>
+      <dd className="font-big text-[34px] leading-none" style={tone ? { color: `var(--color-${tone})` } : undefined}>
         {value}
       </dd>
       <dt className="mt-0.5 text-[10px] font-semibold tracking-wider text-muted uppercase">{label}</dt>

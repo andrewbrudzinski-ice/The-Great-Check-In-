@@ -14,6 +14,7 @@ import { formatDateTime, formatDuration, formatTime } from "@/lib/week";
 import { Confetti } from "./Confetti";
 import { CheckIcon, ClockIcon, CrosshairIcon, PinIcon } from "./Icons";
 import { Sheet } from "./ui";
+import { haptics } from "@/lib/haptics";
 
 type Stage = "idle" | "locating" | "verifying";
 
@@ -32,12 +33,13 @@ export function CheckInButton() {
 
   async function go() {
     if (busy || !me) return;
-    navigator.vibrate?.(12);
+    haptics.tap();
     const before = mine?.count ?? 0;
     const outcome = await checkIn((st) => setStage(st));
     setStage("idle");
     if (outcome.kind === "result" && outcome.result.ok) {
-      navigator.vibrate?.([20, 40, 60]);
+      if (before + 1 === mine?.required) haptics.milestone();
+      else haptics.success();
       setSuccess({ checkIn: outcome.result.checkIn, countBefore: before });
     } else {
       setFailure(outcome);
@@ -186,7 +188,7 @@ function SuccessOverlay({
             </div>
 
             <motion.h2
-              className="font-display mt-10 text-[clamp(2.5rem,13vw,3.75rem)] leading-none font-black whitespace-nowrap"
+              className="font-big mt-10 text-[clamp(2.25rem,13vw,3.75rem)] leading-none whitespace-nowrap"
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.2 }}

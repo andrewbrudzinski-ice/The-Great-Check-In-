@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Archivo, Inter } from "next/font/google";
+import { Archivo, Geist_Mono, Inter } from "next/font/google";
 import { Shell } from "@/components/Shell";
 import { AppProvider } from "@/lib/store";
 import "leaflet/dist/leaflet.css";
@@ -7,6 +7,7 @@ import "./globals.css";
 
 const archivo = Archivo({ subsets: ["latin"], axes: ["wdth"], variable: "--font-archivo", display: "swap" });
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const mono = Geist_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-geist-mono", display: "swap" });
 
 export const metadata: Metadata = {
   title: "The Great Check In",
@@ -25,7 +26,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${archivo.variable} ${inter.variable}`}>
+    <html lang="en" className={`${archivo.variable} ${inter.variable} ${mono.variable}`}>
       <body>
         <AppProvider>
           <Shell>{children}</Shell>

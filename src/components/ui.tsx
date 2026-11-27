@@ -52,7 +52,7 @@ export function StatusPill({ status, label, className = "" }: { status: Status; 
   const meta = STATUS_META[status];
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] font-display text-[10px] font-bold tracking-[0.08em] whitespace-nowrap uppercase ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] font-mono text-[10px] font-medium tracking-[0.06em] whitespace-nowrap uppercase ${className}`}
       style={{ color: meta.color, background: `color-mix(in srgb, ${meta.color} 14%, transparent)` }}
     >
       <span className="h-1.5 w-1.5 rounded-full" style={{ background: meta.color }} />

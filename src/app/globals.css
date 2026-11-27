@@ -1,25 +1,35 @@
 @import "tailwindcss";
 
 @theme {
+  /* Three surfaces, two text greys, then colours that each have one job. */
   --color-bg: #08090b;
-  --color-surface: #111317;
-  --color-surface-2: #171a1f;
-  --color-surface-3: #1f232a;
+  --color-surface: #0f1114;
+  --color-surface-2: #15181c;
+  --color-surface-3: #1c2026;
   --color-line: rgb(255 255 255 / 0.07);
   --color-line-strong: rgb(255 255 255 / 0.13);
-  --color-ink: #f3f4f6;
-  --color-ink-2: #b4b8c0;
-  --color-muted: #7c828d;
+  --color-ink: #f4f5f6;
+  --color-ink-2: #b8bcc4;
+  --color-muted: #8c929c;
+  --color-faint: #5a606b;
+  /* Lime: progress and the main action. */
   --color-volt: #c8ff3d;
   --color-volt-ink: #0b0f02;
+  /* Ember: streaks only. */
+  --color-ember: #ffb26b;
 
   --color-safe: #4ade80;
   --color-one: #facc15;
   --color-close: #fb923c;
-  --color-problem: #fb4166;
+  /* Red: real danger and money owed, nothing else. */
+  --color-problem: #ff4d6a;
 
   --font-display: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Motion: fast out, soft landing. */
+  --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   --animate-shimmer: shimmer 2.4s linear infinite;
   --animate-pulse-ring: pulse-ring 2.6s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
@@ -58,18 +68,31 @@ body {
 
 body {
   font-family: var(--font-sans);
-  /* faint top glow — the only big gradient in the app */
-  background-image:
-    radial-gradient(120% 60% at 50% -10%, rgb(200 255 61 / 0.07), transparent 60%),
-    radial-gradient(80% 50% at 100% 0%, rgb(61 217 255 / 0.04), transparent 60%);
+  /* faint lime glow at the top — the only big gradient in the app */
+  background-image: radial-gradient(120% 55% at 50% -12%, rgb(200 255 61 / 0.07), transparent 60%);
   background-attachment: fixed;
   min-height: 100dvh;
 }
 
+/* Headlines and names: Archivo at its natural width, tight. */
 .font-display {
   font-family: var(--font-display);
-  font-variation-settings: "wdth" 112;
-  letter-spacing: -0.02em;
+  font-variation-settings: "wdth" 100;
+  letter-spacing: -0.025em;
+}
+
+/* Big numbers (counts, countdowns, scores): condensed and heavy. */
+.font-big {
+  font-family: var(--font-display);
+  font-variation-settings: "wdth" 78;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Labels, times, units. */
+.font-mono {
+  font-family: var(--font-mono);
 }
 
 .font-condensed {
@@ -82,11 +105,10 @@ body {
 }
 
 .eyebrow {
-  font-family: var(--font-display);
-  font-variation-settings: "wdth" 100;
+  font-family: var(--font-mono);
   font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
+  font-weight: 500;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-muted);
 }
@@ -108,6 +130,27 @@ body {
 .no-scrollbar { scrollbar-width: none; }
 
 button, a { touch-action: manipulation; }
+
+/* Anything tappable that should visibly give under your thumb. */
+.pressable {
+  transition: transform 140ms var(--ease-out-soft), filter 140ms var(--ease-out-soft);
+}
+.pressable:active:not(:disabled) {
+  transform: scale(0.97);
+  filter: brightness(0.96);
+}
+
+/* Respect "Reduce Motion": no loops, no slides; state changes stay instant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 :focus-visible {
   outline: 2px solid var(--color-volt);

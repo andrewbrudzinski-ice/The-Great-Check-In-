@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { LayoutGroup, motion } from "motion/react";
 import { Avatar } from "@/components/Avatar";
+import { RollingNumber } from "@/components/RollingNumber";
 import { SkullIcon } from "@/components/Icons";
 import { PageTitle, SectionTitle, SegmentBar, StatusPill, StreakBadge } from "@/components/ui";
 import { STATUS_META } from "@/lib/game";
@@ -69,7 +70,7 @@ export default function StandingsPage() {
                   )}
                 </div>
               </Link>
-              <span className="font-display tabular text-4xl font-black">{pw.count}</span>
+              <span className="font-big text-[44px] leading-none"><RollingNumber value={pw.count} /></span>
             </motion.li>
           ))}
         </ol>
@@ -162,7 +163,7 @@ export default function StandingsPage() {
                 >
                   <Avatar player={pw.player} size={40} />
                   <p className="mt-2 truncate text-xs font-semibold">{pw.player.name}</p>
-                  <p className="font-display tabular mt-1 text-3xl font-black">{st.currentStreak}</p>
+                  <p className="font-big mt-1 text-[34px] leading-none">{st.currentStreak}</p>
                   <p className="text-[10px] tracking-wider text-muted uppercase">
                     week{st.currentStreak === 1 ? "" : "s"} {st.currentStreak >= 6 ? "🔥🔥" : st.currentStreak > 0 ? "🔥" : ""}
                   </p>

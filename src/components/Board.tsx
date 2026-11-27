@@ -6,6 +6,7 @@ import type { PlayerWeek } from "@/lib/game";
 import { useGame } from "@/lib/store";
 import { playerLines } from "@/lib/trash";
 import { Avatar } from "./Avatar";
+import { RollingNumber } from "./RollingNumber";
 import { SegmentBar, StatusPill, StreakBadge } from "./ui";
 
 /** The board on Home. Real danger (no slack left) is impossible to miss. */
@@ -63,20 +64,20 @@ function BoardRow({ pw, isMe, streak, text }: { pw: PlayerWeek; isMe: boolean; s
           <p className={`truncate text-[12.5px] ${danger ? "text-problem/90" : "text-muted"}`}>{text}</p>
         </div>
         <div className="flex flex-col items-end gap-1">
-          <span className="font-display tabular text-[28px] leading-none font-black">
-            {pw.count}
-            <span className="text-base text-muted">/{pw.required}</span>
+          <span className="font-big flex items-end text-[32px] leading-none">
+            <RollingNumber value={pw.count} />
+            <span className="text-[17px] text-faint">/{pw.required}</span>
           </span>
           {pw.paused ? (
-            <span className="rounded-full bg-surface-3 px-2 py-[3px] font-display text-[10px] font-bold tracking-[0.1em] text-muted" title="Paused by an admin. This week doesn't count">
+            <span className="rounded-full bg-surface-3 px-2 py-[3px] font-mono text-[10px] font-medium tracking-[0.06em] text-muted" title="Paused by an admin. This week doesn't count">
               ⏸ PAUSED
             </span>
           ) : pw.warmup ? (
-            <span className="rounded-full bg-surface-3 px-2 py-[3px] font-display text-[10px] font-bold tracking-[0.1em] text-muted" title="Joined mid-week — this week doesn't count">
+            <span className="rounded-full bg-surface-3 px-2 py-[3px] font-mono text-[10px] font-medium tracking-[0.06em] text-muted" title="Joined mid-week — this week doesn't count">
               WARM-UP
             </span>
           ) : danger ? (
-            <span className="rounded-full bg-problem px-2 py-[3px] font-display text-[10px] font-black tracking-[0.12em] text-white">
+            <span className="rounded-md bg-problem px-2 py-[3px] font-mono text-[10px] font-medium tracking-[0.08em] text-white">
               DANGER
             </span>
           ) : (
