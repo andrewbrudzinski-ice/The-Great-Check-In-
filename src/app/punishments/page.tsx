@@ -58,22 +58,22 @@ export default function PunishmentsPage() {
             animate={{ scale: 1, opacity: 1 }}
             className="rounded-3xl bg-volt px-5 py-6 text-volt-ink"
           >
-            <p className="font-display text-4xl leading-none font-black">ALL SQUARE.</p>
+            <p className="font-big text-[48px] leading-[0.9] uppercase">All square.</p>
             <p className="mt-2 text-sm font-medium opacity-70">Nothing owed. Enjoy it while it lasts.</p>
           </motion.div>
         ) : (
-          <div className="rounded-3xl border border-problem/30 bg-[linear-gradient(150deg,rgba(251,65,102,0.16),rgba(251,65,102,0.03)_60%)] px-5 py-5">
-            <p className="eyebrow text-problem/80">Owed by the group</p>
+          <div className="rounded-[22px] bg-surface px-5 py-5 shadow-[inset_0_0_0_1px_rgb(255_77_106/0.25)]">
+            <p className="eyebrow !text-problem">Owed by the group</p>
             <p className="mt-1 flex items-baseline gap-2">
               <motion.span
                 key={game.owed.length}
                 initial={{ scale: 1.4, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="font-big text-[68px] leading-none text-problem"
+                className="font-big text-[80px] leading-[0.85] text-problem"
               >
                 {game.owed.length}
               </motion.span>
-              <span className="font-display text-lg font-bold">punishment{game.owed.length === 1 ? "" : "s"}</span>
+              <span className="font-display text-lg font-extrabold">punishment{game.owed.length === 1 ? "" : "s"}</span>
             </p>
             <p className="mt-2 text-sm text-ink-2">Settle up, then mark it done below.</p>
           </div>
@@ -90,7 +90,11 @@ export default function PunishmentsPage() {
         <SectionTitle right={me?.isOwner ? <Link href="/settings" className="text-[11px] font-semibold text-muted hover:text-ink">Edit</Link> : undefined}>
           The deal
         </SectionTitle>
-        <p className="font-display text-2xl leading-tight font-extrabold">“{s.punishment}”</p>
+        <p className="font-big text-[34px] leading-[0.98]">
+          <span className="text-volt">“</span>
+          {s.punishment}
+          <span className="text-volt">”</span>
+        </p>
         <p className="mt-2 text-sm text-muted">
           If anyone finishes a week under their check-in goal, the <b className="text-ink-2">whole group</b> does it together.
         </p>
@@ -124,18 +128,18 @@ export default function PunishmentsPage() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, x: 60, transition: { duration: 0.25 } }}
-                    className="rounded-3xl border border-problem/25 bg-surface/60 p-4"
+                    className="relative rounded-[22px] bg-surface p-4 shadow-[inset_0_0_0_1px_rgb(255_77_106/0.22)]"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="eyebrow">{weekRangeLabel(w.weekStart)}</p>
                         <p className="font-display mt-1 text-lg font-extrabold">Week of {longDate(w.weekStart)}</p>
                       </div>
-                      <span className="shrink-0 rounded-full bg-problem/15 px-2 py-1 font-display text-[10px] font-black tracking-[0.1em] text-problem">
+                      <span className="shrink-0 rounded-[4px] bg-problem px-1.5 py-[3px] font-mono text-[10px] font-medium tracking-[0.06em] text-white">
                         {ageDays <= 0 ? "DUE NOW" : `OWED ${ageDays}D`}
                       </span>
                     </div>
-                    <p className="font-display mt-3 text-xl leading-snug font-extrabold">“{w.punishment}”</p>
+                    <p className="font-big mt-3 text-[28px] leading-[0.98]">“{w.punishment}”</p>
                     <div className="mt-3 flex items-center gap-2">
                       <span className="flex -space-x-2">
                         {w.culprits.map((c) => (
@@ -152,9 +156,10 @@ export default function PunishmentsPage() {
                         ))}
                       </p>
                     </div>
+                    <div aria-hidden className="-mx-1 mt-4 h-px bg-[linear-gradient(90deg,rgb(255_255_255/0.2)_50%,transparent_50%)] bg-[length:8px_1px]" />
                     <button
                       onClick={() => setConfirm(w)}
-                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-ink py-3 font-display text-sm font-black tracking-wide text-bg"
+                      className="pressable mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-ink text-[15px] font-semibold text-bg"
                     >
                       <CheckIcon size={18} strokeWidth={2.6} /> We did it
                     </button>
@@ -210,8 +215,10 @@ export default function PunishmentsPage() {
       <Sheet open={!!confirm} onClose={() => setConfirm(null)}>
         {confirm && (
           <div className="pt-1 pb-2 text-center">
-            <p className="text-5xl">🤝</p>
-            <h3 className="font-display mt-4 text-3xl font-black">Punishment served?</h3>
+            <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-volt text-volt-ink">
+              <CheckIcon size={30} strokeWidth={2.8} />
+            </span>
+            <h3 className="font-big mt-5 text-[40px] leading-[0.9] uppercase">Punishment served?</h3>
             <p className="mx-auto mt-3 max-w-sm text-[15px] leading-relaxed text-ink-2">
               “{confirm.punishment}” for the week of {longDate(confirm.weekStart)}. Everyone will see you marked it done.
             </p>
@@ -219,7 +226,7 @@ export default function PunishmentsPage() {
             <button
               onClick={() => mark(confirm, true)}
               disabled={busy}
-              className="mt-6 w-full rounded-2xl bg-volt py-4 font-display text-lg font-black tracking-wide text-volt-ink disabled:opacity-60"
+              className="pressable mt-6 h-14 w-full rounded-2xl bg-volt font-display text-lg font-extrabold text-volt-ink disabled:opacity-60"
             >
               {busy ? "Saving…" : "Yes, it's done"}
             </button>
@@ -239,7 +246,7 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: "sa
       <dd className="font-big text-[34px] leading-none" style={tone ? { color: `var(--color-${tone})` } : undefined}>
         {value}
       </dd>
-      <dt className="mt-0.5 text-[10px] font-semibold tracking-wider text-muted uppercase">{label}</dt>
+      <dt className="eyebrow mt-1">{label}</dt>
     </div>
   );
 }

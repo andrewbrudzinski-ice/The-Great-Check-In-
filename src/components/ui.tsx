@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState, type ReactNode } from "react";
-import { STATUS_META, type Status } from "@/lib/game";
+import { STATUS_META, type PlayerWeek, type Status } from "@/lib/game";
 import { FlameIcon, XIcon } from "./Icons";
 
 /** One segment per required check-in; overflow shows as a +N chip. */
@@ -46,6 +46,27 @@ export function SegmentBar({
       )}
     </div>
   );
+}
+
+/** One player's week in a word: Danger, 1 more, 3 to go, Safe, Paused, Warm-up. */
+export function WeekTag({ pw }: { pw: PlayerWeek }) {
+  const base = "rounded-[4px] px-1.5 py-[2px] font-mono text-[9.5px] font-medium tracking-[0.06em] whitespace-nowrap uppercase";
+  const extra = pw.count - pw.required;
+  if (pw.paused)
+    return (
+      <span className={`${base} bg-surface-3 text-muted`} title="Paused by an admin. This week doesn't count">
+        Paused
+      </span>
+    );
+  if (pw.warmup)
+    return (
+      <span className={`${base} bg-surface-3 text-muted`} title="Joined mid-week. This week doesn't count">
+        Warm-up
+      </span>
+    );
+  if (pw.inDanger) return <span className={`${base} bg-problem text-white`}>Danger</span>;
+  if (pw.completed) return <span className={`${base} text-volt`}>{extra > 0 ? `Safe · +${extra}` : "Safe ✓"}</span>;
+  return <span className={`${base} ${pw.remaining === 1 ? "text-volt" : "text-muted"}`}>{pw.remaining === 1 ? "1 more" : `${pw.remaining} to go`}</span>;
 }
 
 export function StatusPill({ status, label, className = "" }: { status: Status; label?: string; className?: string }) {

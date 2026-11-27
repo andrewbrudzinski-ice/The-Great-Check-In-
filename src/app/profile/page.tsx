@@ -3,18 +3,20 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
-import { GearIcon } from "@/components/Icons";
-import { Ring, SectionTitle, StatusPill } from "@/components/ui";
+import { FlameIcon, GearIcon } from "@/components/Icons";
+import { RollingNumber } from "@/components/RollingNumber";
+import { Ring, SectionTitle, WeekTag } from "@/components/ui";
 import type { PlayerStats } from "@/lib/game";
 import { dailyStreaks, lifetimeStats } from "@/lib/challenges";
 import { programSummary, runLabel } from "@/lib/programs";
-import { STATUS_META } from "@/lib/game";
 import { formatDistance } from "@/lib/geo";
+import { firstToGoal } from "@/lib/season";
 import { useGame } from "@/lib/store";
 import { playerLine } from "@/lib/trash";
-import { formatDateTime, shortDate } from "@/lib/week";
+import type { CheckIn } from "@/lib/types";
+import { addDays, formatDateTime, localDate, shortDate } from "@/lib/week";
 
 export default function ProfilePage() {
   return (
@@ -30,6 +32,7 @@ function Profile() {
   const router = useRouter();
   const id = params.get("id") ?? me?.id ?? data.players[0]?.id;
   const player = data.players.find((p) => p.id === id);
+  const season = useMemo(() => firstToGoal(game.history, data.checkIns, data.settings.timezone), [game.history, data.checkIns, data.settings.timezone]);
   if (!player) return <p className="py-20 text-center text-muted">Player not found.</p>;
 
   const st = game.stats[player.id];
@@ -51,76 +54,82 @@ function Profile() {
   return (
     <div>
       {/* Player switcher */}
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex gap-2">
+      <div className="mb-7 flex items-center justify-between gap-3">
+        <div className="no-scrollbar -my-1 flex min-w-0 gap-2 overflow-x-auto py-1 pl-1">
           {data.players.map((p) => (
             <button
               key={p.id}
               onClick={() => router.replace(`/profile?id=${p.id}`)}
               aria-label={p.name}
               aria-pressed={p.id === player.id}
-              className={`rounded-full transition-opacity ${p.id === player.id ? "" : "opacity-40 hover:opacity-80"}`}
+              className={`pressable shrink-0 rounded-full transition-opacity ${p.id === player.id ? "" : "opacity-40 hover:opacity-80"}`}
             >
               <Avatar player={p} size={34} ring={p.id === player.id} />
             </button>
           ))}
         </div>
         {isMe && (
-          <Link href="/settings" className="flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold text-ink-2 hover:text-ink">
+          <Link href="/settings" className="pressable flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold text-ink-2 shadow-[inset_0_0_0_1px_var(--color-line)] hover:text-ink">
             <GearIcon size={14} /> Edit
           </Link>
         )}
       </div>
 
       {/* Hero */}
-      <motion.section key={player.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-5">
-        <Ring value={pw.count} max={pw.required} size={128} stroke={9} color={STATUS_META[pw.status].color}>
-          <Avatar player={player} size={92} />
-        </Ring>
-        <div className="min-w-0">
-          <h1 className="font-display truncate text-4xl leading-none font-black">{player.name}</h1>
-          {player.paused && <p className="mt-1 text-[11px] font-bold tracking-wider text-muted">⏸ PAUSED · WEEKS DON&apos;T COUNT</p>}
-          <p className="font-display tabular mt-2 text-xl font-extrabold">
-            {pw.count}
-            <span className="text-muted">/{pw.required}</span> <span className="text-sm font-semibold text-muted">this week</span>
-          </p>
-          <div className="mt-2">
-            <StatusPill status={pw.status} />
+      <motion.section key={player.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="flex items-center gap-4">
+          <Ring value={pw.count} max={pw.required} size={104} stroke={7} color={pw.inDanger ? "var(--color-problem)" : "var(--color-volt)"}>
+            <Avatar player={player} size={76} />
+          </Ring>
+          <div className="min-w-0 flex-1">
+            <p className="eyebrow truncate">
+              {player.isOwner ? "Club owner" : player.isAdmin ? "Admin" : "Member"} · since {shortDate(localDate(player.createdAt, tz))}
+            </p>
+            <h1 className="font-big mt-1.5 truncate text-[clamp(44px,14vw,64px)] leading-[0.86]">{player.name}</h1>
+            {player.paused && <p className="mt-1.5 font-mono text-[10.5px] tracking-[0.06em] text-muted uppercase">Paused · weeks don&apos;t count</p>}
           </div>
-          <p className="mt-2 text-xs text-muted">{playerLine(pw, ctx, isMe)}</p>
+        </div>
+        <div className="mt-5 flex items-center gap-4 border-y border-line py-4">
+          <div className="shrink-0">
+            <p className="eyebrow">This week</p>
+            <p className="font-big mt-1 flex items-end text-[44px] leading-[0.85]">
+              <RollingNumber value={pw.count} />
+              <span className="text-[22px] text-faint">/{pw.required}</span>
+            </p>
+            <div className="mt-1.5">
+              <WeekTag pw={pw} />
+            </div>
+          </div>
+          <p className="min-w-0 flex-1 text-right text-[13.5px] leading-snug text-ink-2">{playerLine(pw, ctx, isMe)}</p>
         </div>
       </motion.section>
 
       {/* Streak */}
-      <section className="mt-8 flex items-center justify-between rounded-3xl border border-orange-400/20 bg-[linear-gradient(120deg,rgba(251,146,60,0.12),transparent_70%)] px-5 py-4">
+      <section className="mt-6 flex items-center justify-between rounded-[22px] bg-[linear-gradient(120deg,rgb(255_178_107/0.12),transparent_70%)] px-5 py-4 shadow-[inset_0_0_0_1px_rgb(255_178_107/0.18)]">
         <div>
-          <p className="eyebrow text-orange-300/80">Current streak</p>
+          <p className="eyebrow !text-ember">Current streak</p>
           <p className="mt-1 flex items-baseline gap-2">
-            <motion.span
-              key={st.currentStreak}
-              initial={{ scale: 1.4, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="font-big text-[56px] leading-none"
-            >
-              {st.currentStreak}
-            </motion.span>
-            <span className="font-display text-lg font-bold">WEEK{st.currentStreak === 1 ? "" : "S"}</span>
+            <span className="font-big text-[64px] leading-[0.85]">
+              <RollingNumber value={st.currentStreak} />
+            </span>
+            <span className="font-display text-lg font-extrabold">week{st.currentStreak === 1 ? "" : "s"}</span>
           </p>
-          {st.streakIncludesThisWeek && <p className="mt-1 text-[11px] text-orange-200/70">Includes this week. Locked in.</p>}
+          {st.streakIncludesThisWeek && <p className="mt-1.5 text-[11.5px] text-ember/80">Includes this week. Locked in.</p>}
         </div>
-        <span className="text-5xl" aria-hidden>
-          {st.currentStreak >= 6 ? "🔥🔥" : st.currentStreak > 0 ? "🔥" : "🧊"}
-        </span>
+        <div className="flex flex-col items-end">
+          <FlameIcon size={44} strokeWidth={1.6} className={st.currentStreak ? "text-ember" : "text-faint"} />
+          <p className="eyebrow mt-2">Best {st.bestStreak}</p>
+        </div>
       </section>
 
       {/* Stats */}
-      <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-5 border-b border-line pb-6">
-        <BigStat label="Total check-ins" value={st.total} />
-        <BigStat label="Best streak" value={st.bestStreak} suffix="wks" />
-        <BigStat label="Weeks completed" value={st.weeksCompleted} tone="safe" />
-        <BigStat label="Weeks failed" value={st.weeksFailed} tone={st.weeksFailed ? "problem" : undefined} />
-        <BigStat label="Solo fails" hint="Only one who missed" value={st.soloFails} tone={st.soloFails ? "problem" : undefined} />
-        <BigStat
+      <dl className="mt-6">
+        <StatRow label="Total check-ins" value={st.total} />
+        <StatRow label="First in" hint="weeks hitting the goal before anyone" value={season.wins[player.id] ?? 0} tone={season.wins[player.id] ?? 0 ? "volt" : undefined} />
+        <StatRow label="Weeks completed" value={st.weeksCompleted} tone={st.weeksCompleted ? "volt" : undefined} />
+        <StatRow label="Weeks failed" value={st.weeksFailed} tone={st.weeksFailed ? "problem" : undefined} />
+        <StatRow label="Solo fails" hint="only one who missed" value={st.soloFails} tone={st.soloFails ? "problem" : undefined} />
+        <StatRow
           label="Success rate"
           value={st.weeksCompleted + st.weeksFailed ? Math.round((st.weeksCompleted / (st.weeksCompleted + st.weeksFailed)) * 100) : 0}
           suffix="%"
@@ -148,7 +157,7 @@ function Profile() {
                   <li key={p.id}>
                     <Link
                       href="/hard"
-                      className={`block rounded-2xl border p-4 ${bad ? "border-problem/30 bg-problem/[0.06]" : "border-orange-400/20 bg-[linear-gradient(120deg,rgba(251,146,60,0.10),transparent_70%)]"}`}
+                      className={`block rounded-2xl border p-4 ${bad ? "border-problem/30 bg-problem/[0.06]" : "border-ember/20 bg-[linear-gradient(120deg,rgb(255_178_107/0.10),transparent_70%)]"}`}
                     >
                       <div className="flex items-baseline justify-between gap-3">
                         <span className="font-display text-xl font-black">
@@ -269,6 +278,12 @@ function Profile() {
         </section>
       )}
 
+      {/* Consistency */}
+      <section className="mt-8">
+        <SectionTitle>Consistency</SectionTitle>
+        <Consistency checkIns={mineAll} weekStart={game.weekStart} today={game.today} tz={tz} />
+      </section>
+
       {/* Weekly chart */}
       <section className="mt-8">
         <SectionTitle>Last 12 weeks</SectionTitle>
@@ -284,13 +299,13 @@ function Profile() {
           <ul className="divide-y divide-line">
             {recent.map((c) => (
               <li key={c.id}>
-                <Link href={`/map?checkin=${c.id}`} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                  <span>
+                <Link href={`/map?checkin=${c.id}`} className="flex items-center justify-between gap-3 py-2.5 text-sm transition-colors active:bg-white/[0.02]">
+                  <span className="min-w-0">
                     {c.gymName}
-                    {c.distanceM != null && <span className="text-xs text-muted"> · ✓ {formatDistance(c.distanceM)} from gym</span>}
-                    {c.manual && <span className="text-xs text-one"> · ✍️ added by the owner</span>}
+                    {c.distanceM != null && <span className="text-xs text-muted"> · {formatDistance(c.distanceM)} from gym</span>}
+                    {c.manual && <span className="ml-1.5 font-mono text-[9.5px] tracking-[0.06em] text-muted uppercase">Manual</span>}
                   </span>
-                  <span className="tabular text-xs text-muted">{formatDateTime(c.checkedInAt, tz)} 📍</span>
+                  <span className="shrink-0 font-mono text-[11px] text-muted tabular">{formatDateTime(c.checkedInAt, tz)}</span>
                 </Link>
               </li>
             ))}
@@ -307,33 +322,17 @@ function Profile() {
   );
 }
 
-function BigStat({
-  label,
-  value,
-  suffix,
-  tone,
-  hint,
-}: {
-  label: string;
-  value: number;
-  suffix?: string;
-  tone?: "safe" | "problem";
-  /** A few words under the number explaining it. */
-  hint?: string;
-}) {
+function StatRow({ label, value, suffix, tone, hint }: { label: string; value: number; suffix?: string; tone?: "volt" | "problem"; hint?: string }) {
   return (
-    <div>
-      <dt className="eyebrow">{label}</dt>
-      <dd className="mt-1 flex items-baseline gap-1">
-        <span
-          className="font-big text-[44px] leading-none"
-          style={tone ? { color: `var(--color-${tone})` } : undefined}
-        >
-          {value}
-        </span>
-        {suffix && <span className="text-sm font-semibold text-muted">{suffix}</span>}
+    <div className="flex items-baseline justify-between gap-4 border-b border-line py-3">
+      <dt className="min-w-0">
+        <span className="eyebrow">{label}</span>
+        {hint && <span className="ml-2 text-[11.5px] text-faint">{hint}</span>}
+      </dt>
+      <dd className="font-big shrink-0 text-[36px] leading-[0.85]" style={tone ? { color: `var(--color-${tone})` } : undefined}>
+        {value}
+        {suffix && <span className="ml-0.5 text-[18px] text-muted">{suffix}</span>}
       </dd>
-      {hint && <dd className="mt-1 text-[11px] text-muted">{hint}</dd>}
     </div>
   );
 }
@@ -341,13 +340,13 @@ function BigStat({
 function MiniStat({ label, value, tone, flame }: { label: string; value: string; tone?: "safe"; flame?: boolean }) {
   return (
     <div>
-      <dt className="truncate text-[10px] font-semibold tracking-wider text-muted uppercase">{label}</dt>
+      <dt className="eyebrow truncate !text-[10px]">{label}</dt>
       <dd
-        className={`font-display tabular mt-0.5 text-2xl leading-none font-black ${flame ? "text-orange-300" : ""}`}
+        className={`font-big mt-0.5 flex items-center gap-1 text-[28px] leading-none ${flame ? "text-ember" : ""}`}
         style={tone ? { color: `var(--color-${tone})` } : undefined}
       >
         {value}
-        {flame && <span className="ml-0.5 text-base">🔥</span>}
+        {flame && <FlameIcon size={16} strokeWidth={2.2} />}
       </dd>
     </div>
   );
@@ -407,6 +406,56 @@ function WeeklyBars({ timeline }: { timeline: PlayerStats["timeline"] }) {
             {i % 3 === 0 || i === weeks.length - 1 ? shortDate(w.weekStart).replace(" ", " ") : ""}
           </span>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/** Every day of the last 12 weeks: lime where you went (brighter for doubles), today ringed. */
+function Consistency({ checkIns, weekStart, today, tz }: { checkIns: CheckIn[]; weekStart: string; today: string; tz: string }) {
+  const weeks = Array.from({ length: 12 }, (_, i) => addDays(weekStart, -7 * (11 - i)));
+  const perDay = new Map<string, number>();
+  for (const c of checkIns) {
+    const d = localDate(c.checkedInAt, tz);
+    perDay.set(d, (perDay.get(d) ?? 0) + 1);
+  }
+  const daysWent = weeks.reduce((n, w) => n + Array.from({ length: 7 }, (_, i) => addDays(w, i)).filter((d) => (perDay.get(d) ?? 0) > 0).length, 0);
+  return (
+    <div>
+      <div className="flex gap-2">
+        <div className="flex flex-col justify-between py-[3px] font-mono text-[9px] text-faint" aria-hidden>
+          <span>M</span>
+          <span>W</span>
+          <span>F</span>
+          <span>S</span>
+        </div>
+        <div className="grid flex-1 grid-cols-12 gap-[3px]" role="img" aria-label={`Went to the gym on ${daysWent} days in the last 12 weeks`}>
+          {weeks.map((w) => (
+            <div key={w} className="grid grid-rows-7 gap-[3px]">
+              {Array.from({ length: 7 }, (_, i) => {
+                const d = addDays(w, i);
+                const n = perDay.get(d) ?? 0;
+                const future = d > today;
+                return (
+                  <span
+                    key={d}
+                    title={`${shortDate(d)}: ${n} check-in${n === 1 ? "" : "s"}`}
+                    className={`aspect-square rounded-[3px] ${
+                      future ? "bg-transparent" : n >= 2 ? "bg-volt" : n === 1 ? "bg-volt/65" : "bg-surface-2"
+                    } ${d === today ? "ring-[1.5px] ring-ink/70" : ""}`}
+                  />
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-2 flex justify-between pl-5 font-mono text-[9.5px] tracking-[0.06em] text-faint uppercase">
+        <span>{shortDate(weeks[0])}</span>
+        <span className="text-muted">
+          <b className="font-medium text-ink-2">{daysWent}</b> days went
+        </span>
+        <span>This week</span>
       </div>
     </div>
   );
