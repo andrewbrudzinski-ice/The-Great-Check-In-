@@ -7,6 +7,7 @@ import { computeChallenges, quickAmounts, sortedChallenges, type ChallengeState,
 import { useGame } from "@/lib/store";
 import { Avatar } from "./Avatar";
 import { Confetti } from "./Confetti";
+import { RollingNumber } from "./RollingNumber";
 import { CheckIcon, ChevronRight, FlameIcon } from "./Icons";
 
 export function useChallengeStates(): ChallengeState[] {
@@ -31,7 +32,7 @@ export function ChallengeBar({ value, target, height = 8 }: { value: number; tar
     <div className="relative w-full overflow-hidden rounded-full bg-surface-3" style={{ height }}>
       <motion.span
         className="absolute inset-y-0 left-0 rounded-full"
-        style={{ background: done ? "var(--color-safe)" : "var(--color-volt)" }}
+        style={{ background: "var(--color-volt)", boxShadow: done ? "0 0 12px -2px rgb(200 255 61 / 0.6)" : undefined }}
         initial={false}
         animate={{ width: `${pct * 100}%` }}
         transition={{ type: "spring", stiffness: 160, damping: 24 }}
@@ -71,20 +72,18 @@ export function LogButtons({ state, compact = false }: { state: ChallengeState; 
     }
   }
 
-  const btn = `rounded-xl font-display font-black tabular transition-transform active:scale-95 disabled:opacity-50 ${
-    compact ? "py-2.5 text-sm" : "py-3 text-base"
-  }`;
+  const btn = `pressable rounded-[14px] font-display font-extrabold tabular disabled:opacity-50 ${compact ? "h-12 text-[17px]" : "h-[52px] text-[18px]"}`;
 
   return (
     <div className="relative">
       {celebrate > 0 && <Confetti key={celebrate} count={32} spread={200} />}
       <div className="grid grid-cols-4 gap-2">
         {quickAmounts(state.challenge.dailyTarget).map((n) => (
-          <button key={n} onClick={() => add(n)} disabled={busy} className={`${btn} bg-volt text-volt-ink`}>
+          <button key={n} onClick={() => add(n)} disabled={busy} className={`${btn} bg-volt/10 text-volt shadow-[inset_0_0_0_1px_rgba(200,255,61,0.3)]`}>
             +{fmt(n)}
           </button>
         ))}
-        <button onClick={() => setShowCustom((v) => !v)} disabled={busy} className={`${btn} bg-surface-3 text-ink`} aria-expanded={showCustom}>
+        <button onClick={() => setShowCustom((v) => !v)} disabled={busy} className={`${btn} text-muted shadow-[inset_0_0_0_1px_var(--color-line-strong)]`} aria-expanded={showCustom}>
           {showCustom ? "×" : "+ #"}
         </button>
       </div>
@@ -133,14 +132,14 @@ function OtherRow({ p, unit }: { p: PlayerChallenge; unit: string }) {
       </div>
       <span className="tabular w-[72px] text-right text-xs text-muted" aria-label={`${p.today} of ${p.target} ${unit}`}>
         {p.done ? (
-          <span className="inline-flex items-center gap-0.5 font-semibold text-safe">
+          <span className="inline-flex items-center gap-0.5 font-semibold text-volt">
             <CheckIcon size={12} strokeWidth={3} /> {fmt(p.today)}
           </span>
         ) : (
           `${fmt(p.today)}/${fmt(p.target)}`
         )}
       </span>
-      <span className={`inline-flex w-7 items-center justify-end gap-0.5 text-[11px] font-bold tabular ${p.streak ? "text-orange-300" : "text-transparent"}`}>
+      <span className={`inline-flex w-7 items-center justify-end gap-0.5 text-[11px] font-bold tabular ${p.streak ? "text-ember" : "text-transparent"}`}>
         <FlameIcon size={11} strokeWidth={2.4} />
         {p.streak}
       </span>
@@ -156,48 +155,48 @@ export function ChallengeCard({ state, eyebrow, footer }: { state: ChallengeStat
   const others = state.players.filter((p) => p.player.id !== me?.id);
 
   return (
-    <div className={`rounded-3xl border p-4 ${mine?.done ? "border-safe/25 bg-safe/[0.04]" : "border-line bg-surface/60"}`}>
-      <div className="flex items-center gap-2">
-        <span className="text-xl" aria-hidden>
-          {c.emoji}
-        </span>
-        <div className="min-w-0 flex-1">
-          {eyebrow && <p className="text-[10px] font-bold tracking-wider text-volt uppercase">{eyebrow}</p>}
-          <p className="font-display text-[17px] leading-tight font-extrabold">{c.name}</p>
-          <p className="text-xs text-muted">
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <p className="eyebrow !text-volt">{eyebrow ?? `${fmt(c.dailyTarget)} ${c.unit} a day`}</p>
+        <Link href="/challenges" className="flex items-center font-mono text-[10.5px] tracking-[0.06em] text-muted uppercase hover:text-ink">
+          Details <ChevronRight size={13} />
+        </Link>
+      </div>
+      <div className="mt-2.5 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-big truncate text-[44px] leading-[0.88]">{c.name}</p>
+          <p className="mt-1.5 truncate text-[13px] text-muted">
+            <span aria-hidden>{c.emoji} </span>
             {fmt(c.dailyTarget)} {c.unit} {eyebrow ? "today" : "a day"}
-            {state.everyoneDone ? " · everyone's done 🎉" : ` · ${state.doneCount}/${state.players.length} done`}
+            {state.everyoneDone ? " · everyone's done" : ` · ${state.doneCount} of ${state.players.length} done`}
           </p>
         </div>
-        <Link href="/challenges" className="flex items-center text-xs font-semibold text-muted hover:text-ink">
-          Details <ChevronRight size={14} />
-        </Link>
+        {mine && (
+          <span className="font-big flex shrink-0 items-end text-[44px] leading-[0.88]">
+            <RollingNumber value={mine.today} format={fmt} />
+            <span className="pb-0.5 text-[20px] text-faint">/{fmt(mine.target)}</span>
+          </span>
+        )}
       </div>
 
       {mine && (
         <div className="mt-4">
-          <div className="mb-2 flex items-baseline justify-between">
-            <span className="font-display tabular text-3xl leading-none font-black">
-              {fmt(mine.today)}
-              <span className="text-base text-muted">/{fmt(mine.target)}</span>
-            </span>
-            <span className="text-xs">
-              {mine.done ? (
-                <span className="font-display font-black tracking-wider text-safe">DONE ✓</span>
-              ) : (
-                <span className="text-muted">
-                  {fmt(mine.remaining)} {c.unit} to go
-                </span>
-              )}
-              {mine.streak > 0 && (
-                <span className="ml-2 inline-flex items-center gap-0.5 font-bold text-orange-300">
-                  <FlameIcon size={12} strokeWidth={2.4} />
-                  {mine.streak}
-                </span>
-              )}
-            </span>
+          <ChallengeBar value={mine.today} target={mine.target} height={6} />
+          <div className="mt-2 flex items-center justify-between font-mono text-[10.5px] tracking-[0.06em] uppercase">
+            {mine.done ? (
+              <span className="text-volt">Done ✓</span>
+            ) : (
+              <span className="text-muted">
+                {fmt(mine.remaining)} {c.unit} to go
+              </span>
+            )}
+            {mine.streak > 0 && (
+              <span className="inline-flex items-center gap-1 text-ember">
+                <FlameIcon size={12} strokeWidth={2.2} />
+                {mine.streak} day{mine.streak === 1 ? "" : "s"}
+              </span>
+            )}
           </div>
-          <ChallengeBar value={mine.today} target={mine.target} />
           <div className="mt-3">
             <LogButtons state={state} compact />
           </div>

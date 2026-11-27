@@ -9,7 +9,7 @@ import { useEffect, useRef } from "react";
  * never animates on first render, so opening a screen is calm. At rest only
  * the real number is in the page, so screen readers and copy/paste see it.
  */
-export function RollingNumber({ value, className = "" }: { value: number; className?: string }) {
+export function RollingNumber({ value, className = "", format }: { value: number; className?: string; format?: (n: number) => string }) {
   const reduce = useReducedMotion();
   const prev = useRef(value);
   const dir = value >= prev.current ? 1 : -1;
@@ -34,7 +34,7 @@ export function RollingNumber({ value, className = "" }: { value: number; classN
           exit="exit"
           transition={{ duration: reduce ? 0 : 0.5, ease: [0.2, 0.8, 0.2, 1] }}
         >
-          {value}
+          {format ? format(value) : value}
         </motion.span>
       </AnimatePresence>
     </span>
