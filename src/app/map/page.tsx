@@ -85,77 +85,82 @@ function GymMap() {
         ))}
       </div>
 
-      <div className="relative -mx-4 h-[52dvh] min-h-[300px] overflow-hidden border-y border-line sm:mx-0 sm:rounded-3xl sm:border">
-        <CheckInMap
-          checkIns={visible}
-          players={data.players}
-          gyms={data.gyms}
-          timezone={tz}
-          selectedId={selected}
-          onSelect={setSelected}
-          className="h-full w-full"
-        />
-        <div className="pointer-events-none absolute bottom-3 left-3 z-[400] rounded-full bg-bg/80 px-3 py-1.5 text-[11px] font-semibold text-ink-2 backdrop-blur">
-          {visible.length} check-in{visible.length === 1 ? "" : "s"}
+      {/* Widest screens: the map stays put on the left while the list scrolls beside it. */}
+      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start xl:gap-8">
+        <div className="relative -mx-4 h-[52dvh] min-h-[300px] overflow-hidden border-y border-line sm:mx-0 sm:rounded-3xl sm:border xl:sticky xl:top-8 xl:h-[calc(100dvh-196px)] xl:min-h-[420px]">
+          <CheckInMap
+            checkIns={visible}
+            players={data.players}
+            gyms={data.gyms}
+            timezone={tz}
+            selectedId={selected}
+            onSelect={setSelected}
+            className="h-full w-full"
+          />
+          <div className="pointer-events-none absolute bottom-3 left-3 z-[400] rounded-full bg-bg/80 px-3 py-1.5 text-[11px] font-semibold text-ink-2 backdrop-blur">
+            {visible.length} check-in{visible.length === 1 ? "" : "s"}
+          </div>
+        </div>
+
+        <div>
+          {selectedCheckIn && byId(selectedCheckIn.userId) ? (
+            <div className="mt-4 xl:mt-0">
+              <Receipt
+                checkIn={selectedCheckIn}
+                player={byId(selectedCheckIn.userId)!}
+                settings={data.settings}
+                addedByName={byId(selectedCheckIn.addedBy ?? "")?.name}
+                onClose={() => setSelected(null)}
+              />
+            </div>
+          ) : (
+            <p className="mt-3 text-[11px] leading-relaxed text-muted xl:mt-0">
+              Tap any pin or check-in to see its receipt: exact location, GPS accuracy and distance from the gym. Location is
+              read only when someone taps Check In. No background tracking.
+            </p>
+          )}
+
+          <ul className="mt-5 divide-y divide-line">
+            {list.length === 0 && (
+              <li className="py-8 text-center text-sm text-muted">
+                {range === "week" ? "No pins this week. The map is begging for attention." : "No check-ins yet. Be the first pin."}
+              </li>
+            )}
+            {list.map((c) => {
+              const p = byId(c.userId);
+              if (!p) return null;
+              return (
+                <li key={c.id}>
+                  <button
+                    onClick={() => {
+                      setSelected(c.id);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className={`flex w-full items-center gap-3 py-3 text-left ${selected === c.id ? "opacity-100" : "opacity-90"}`}
+                  >
+                    <Avatar player={p} size={34} ring={selected === c.id} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold">{p.name}</p>
+                      <p className="truncate text-xs text-muted">
+                        {c.gymName}
+                        {c.manual && <span className="ml-1 font-mono text-[9.5px] tracking-[0.06em] text-muted uppercase">· Manual</span>}
+                        {c.distanceM != null && (
+                          <>
+                            {" · "}
+                            {formatDistance(c.distanceM)} from gym
+                          </>
+                        )}
+                        {c.accuracy != null && ` · ±${formatDistance(c.accuracy)}`}
+                      </p>
+                    </div>
+                    <span className="tabular text-right text-xs text-ink-2">{formatDateTime(c.checkedInAt, tz)}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       </div>
-
-      {selectedCheckIn && byId(selectedCheckIn.userId) ? (
-        <div className="mt-4">
-          <Receipt
-            checkIn={selectedCheckIn}
-            player={byId(selectedCheckIn.userId)!}
-            settings={data.settings}
-            addedByName={byId(selectedCheckIn.addedBy ?? "")?.name}
-            onClose={() => setSelected(null)}
-          />
-        </div>
-      ) : (
-        <p className="mt-3 text-[11px] leading-relaxed text-muted">
-          Tap any pin or check-in to see its receipt: exact location, GPS accuracy and distance from the gym. Location is
-          read only when someone taps Check In. No background tracking.
-        </p>
-      )}
-
-      <ul className="mt-5 divide-y divide-line">
-        {list.length === 0 && (
-          <li className="py-8 text-center text-sm text-muted">
-            {range === "week" ? "No pins this week. The map is begging for attention." : "No check-ins yet. Be the first pin."}
-          </li>
-        )}
-        {list.map((c) => {
-          const p = byId(c.userId);
-          if (!p) return null;
-          return (
-            <li key={c.id}>
-              <button
-                onClick={() => {
-                  setSelected(c.id);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-                className={`flex w-full items-center gap-3 py-3 text-left ${selected === c.id ? "opacity-100" : "opacity-90"}`}
-              >
-                <Avatar player={p} size={34} ring={selected === c.id} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold">{p.name}</p>
-                  <p className="truncate text-xs text-muted">
-                    {c.gymName}
-                    {c.manual && <span className="ml-1 font-mono text-[9.5px] tracking-[0.06em] text-muted uppercase">· Manual</span>}
-                    {c.distanceM != null && (
-                      <>
-                        {" · "}
-                        {formatDistance(c.distanceM)} from gym
-                      </>
-                    )}
-                    {c.accuracy != null && ` · ±${formatDistance(c.accuracy)}`}
-                  </p>
-                </div>
-                <span className="tabular text-right text-xs text-ink-2">{formatDateTime(c.checkedInAt, tz)}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
     </div>
   );
 }

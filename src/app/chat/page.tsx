@@ -6,13 +6,15 @@ import { Avatar } from "@/components/Avatar";
 import { ChatIcon, SendIcon } from "@/components/Icons";
 import { markChatRead } from "@/lib/chatRead";
 import { useGame } from "@/lib/store";
+import { useDesktop } from "@/lib/useDesktop";
 import { REACTIONS, type ChatMessage, type Player } from "@/lib/types";
 import { formatTime, localDate, longDate } from "@/lib/week";
 
-/** Height of the bottom tab bar (without the safe-area inset). */
+/** Height of the bottom tab bar (without the safe-area inset). On wide screens the nav is on the side: 0. */
 const NAV_H = 60;
-/** The page's own bottom padding (Shell's <main>), which already clears the tab bar. */
+/** The page's own bottom padding (Shell's <main>), which already clears the tab bar. 48 on wide screens. */
 const MAIN_PB = 104;
+const MAIN_PB_DESKTOP = 48;
 /** Breathing room between the newest message and the message box. */
 const GAP = 12;
 
@@ -50,6 +52,9 @@ export default function ChatPage() {
   const composerRef = useRef<HTMLDivElement>(null);
   const [composerH, setComposerH] = useState(66);
   const keyboard = useKeyboardInset();
+  const desktop = useDesktop();
+  const navH = desktop ? 0 : NAV_H;
+  const mainPb = desktop ? MAIN_PB_DESKTOP : MAIN_PB;
 
   // The message box grows with what you type; keep exactly enough room under the newest message.
   useLayoutEffect(() => {
@@ -120,7 +125,7 @@ export default function ChatPage() {
     el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
   }, [text]);
 
-  const composerBottom = keyboard > 0 ? keyboard : `calc(${NAV_H}px + var(--safe-bottom))`;
+  const composerBottom = keyboard > 0 ? keyboard : desktop ? 0 : `calc(${NAV_H}px + var(--safe-bottom))`;
 
   return (
     <div>
@@ -168,12 +173,12 @@ export default function ChatPage() {
         </ol>
       )}
       {/* Room for the message box, so the newest message sits just above it. */}
-      <div aria-hidden style={{ height: Math.max(0, composerH + NAV_H + GAP - MAIN_PB) }} />
+      <div aria-hidden style={{ height: Math.max(0, composerH + navH + GAP - mainPb) }} />
 
-      {/* Composer: above the tab bar, or right on top of the keyboard when it's open */}
+      {/* Composer: above the tab bar (at the bottom, clear of the home bar, on wide screens), or right on top of the keyboard when it's open */}
       <div
         ref={composerRef}
-        className="fixed inset-x-0 z-30 border-t border-line bg-bg/90 backdrop-blur-xl"
+        className="fixed inset-x-0 z-30 border-t border-line bg-bg/90 backdrop-blur-xl lg:left-[232px] lg:pb-[var(--safe-bottom)]"
         style={{ bottom: composerBottom }}
       >
         <form
