@@ -288,7 +288,7 @@ function Bubble({
             m.deleted
               ? "border border-dashed border-line-strong text-muted italic"
               : mine
-                ? `bg-ink text-bg ${pending ? "opacity-60" : ""}`
+                ? `bg-volt text-volt-ink ${pending ? "opacity-60" : ""}`
                 : "bg-surface-2 text-ink"
           } ${selected ? "ring-2 ring-ink/40" : ""}`}
           aria-label={m.deleted ? "Deleted message" : `${author?.name ?? "Someone"}: ${m.body}. Tap to react.`}
@@ -297,6 +297,7 @@ function Bubble({
         </button>
 
         {counts.length > 0 && (
+          // Chips overlap the bubble's bottom edge, so they're solid (yours: lime at 15% over the page) and a lime bubble can't show through.
           <div className={`-mt-1.5 flex flex-wrap gap-1 px-2 ${mine ? "justify-end" : ""}`}>
             {counts.map((c) => (
               <button
@@ -304,7 +305,7 @@ function Bubble({
                 onClick={() => act(() => toggleReaction(m.id, c.emoji))}
                 title={c.who.join(", ")}
                 className={`rounded-full border px-1.5 py-[1px] text-xs tabular ${
-                  c.mine ? "border-volt/50 bg-volt/15 text-ink" : "border-line bg-surface text-ink-2"
+                  c.mine ? "border-volt/50 bg-[#252e13] text-ink" : "border-line bg-surface text-ink-2"
                 }`}
               >
                 {c.emoji} {c.n > 1 ? c.n : ""}
