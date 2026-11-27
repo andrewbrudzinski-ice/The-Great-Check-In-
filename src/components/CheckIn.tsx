@@ -12,7 +12,7 @@ import { line } from "@/lib/trash";
 import type { CheckIn } from "@/lib/types";
 import { formatDateTime, formatDuration, formatTime } from "@/lib/week";
 import { RollingNumber } from "./RollingNumber";
-import { CheckIcon, ClockIcon, CrosshairIcon, PinIcon } from "./Icons";
+import { AlertIcon, CheckIcon, ClockIcon, CrosshairIcon, PinIcon, SignalIcon } from "./Icons";
 import { Sheet } from "./ui";
 import { haptics } from "@/lib/haptics";
 
@@ -289,13 +289,13 @@ function FailureSheet({
   tz: string;
   demo: boolean;
 }) {
-  let emoji = "🤨";
+  let icon: "pin" | "far" | "wait" | "signal" | "map" | "alert" = "alert";
   let title = "Check-in failed";
   let body: React.ReactNode = null;
 
   if (outcome?.kind === "location") {
     const code = outcome.error.code;
-    emoji = "📍";
+    icon = "pin";
     if (code === "denied") {
       title = "We need your location";
       body = (
@@ -315,7 +315,7 @@ function FailureSheet({
     const r = outcome.result;
     switch (r.code) {
       case "too_far":
-        emoji = "🛋️";
+        icon = "far";
         title = "Nice try.";
         body = (
           <>
@@ -333,7 +333,7 @@ function FailureSheet({
         );
         break;
       case "gym_pending":
-        emoji = "⏳";
+        icon = "wait";
         title = "Almost.";
         body = (
           <>
@@ -346,7 +346,7 @@ function FailureSheet({
         );
         break;
       case "cooldown":
-        emoji = "⏳";
+        icon = "wait";
         title = "Easy, tiger.";
         body = (
           <>
@@ -356,12 +356,12 @@ function FailureSheet({
         );
         break;
       case "low_accuracy":
-        emoji = "📡";
+        icon = "signal";
         title = "GPS is too fuzzy";
         body = <>Your location is only accurate to ±{formatDistance(r.accuracy)}. Turn on precise location and try again.</>;
         break;
       case "no_gym":
-        emoji = "🗺️";
+        icon = "map";
         title = "No gyms yet";
         body = (
           <>
@@ -391,10 +391,27 @@ function FailureSheet({
   return (
     <Sheet open={!!outcome} onClose={onClose}>
       <div className="pt-1 pb-2 text-center">
-        <div className="animate-shake text-5xl">{emoji}</div>
-        <h3 className="font-display mt-4 text-3xl font-black">{title}</h3>
+        <span
+          className={`animate-shake mx-auto grid h-16 w-16 place-items-center rounded-full ${
+            icon === "far" ? "bg-problem/12 text-problem shadow-[inset_0_0_0_1px_rgb(255_77_106/0.3)]" : "bg-surface-3 text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)]"
+          }`}
+          aria-hidden
+        >
+          {icon === "pin" || icon === "map" ? (
+            <PinIcon size={28} />
+          ) : icon === "far" ? (
+            <CrosshairIcon size={28} />
+          ) : icon === "wait" ? (
+            <ClockIcon size={28} />
+          ) : icon === "signal" ? (
+            <SignalIcon size={28} />
+          ) : (
+            <AlertIcon size={28} />
+          )}
+        </span>
+        <h3 className="font-big mt-5 text-[40px] leading-[0.9] uppercase">{title}</h3>
         <p className="mx-auto mt-3 max-w-sm text-[15px] leading-relaxed text-ink-2">{body}</p>
-        <button onClick={onClose} className="mt-6 w-full rounded-2xl bg-surface-3 py-3.5 font-display font-bold">
+        <button onClick={onClose} className="pressable mt-6 h-[52px] w-full rounded-2xl bg-surface-3 text-[15px] font-semibold">
           Got it
         </button>
       </div>

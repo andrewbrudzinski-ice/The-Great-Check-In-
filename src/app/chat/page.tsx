@@ -126,7 +126,7 @@ export default function ChatPage() {
     <div>
       <header className="mb-4">
         <p className="eyebrow mb-1.5">{data.players.length} members</p>
-        <h1 className="font-display text-[34px] leading-[0.95] font-black">Club chat</h1>
+        <h1 className="font-big text-[clamp(44px,15vw,60px)] leading-[0.86]">Club chat</h1>
       </header>
 
       {messages.length === 0 ? (
@@ -201,7 +201,7 @@ export default function ChatPage() {
           <button
             type="submit"
             disabled={!text.trim()}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-volt text-volt-ink transition-opacity disabled:opacity-30"
+            className="pressable grid h-11 w-11 shrink-0 place-items-center rounded-full bg-volt text-volt-ink transition-opacity disabled:opacity-30"
             aria-label="Send"
           >
             <SendIcon size={20} strokeWidth={2.2} />
@@ -281,7 +281,7 @@ function Bubble({
             m.deleted
               ? "border border-dashed border-line-strong text-muted italic"
               : mine
-                ? `bg-volt text-volt-ink ${pending ? "opacity-60" : ""}`
+                ? `bg-ink text-bg ${pending ? "opacity-60" : ""}`
                 : "bg-surface-2 text-ink"
           } ${selected ? "ring-2 ring-ink/40" : ""}`}
           aria-label={m.deleted ? "Deleted message" : `${author?.name ?? "Someone"}: ${m.body}. Tap to react.`}

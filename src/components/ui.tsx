@@ -236,10 +236,10 @@ export function SectionTitle({ children, right, index }: { children: ReactNode; 
 
 export function PageTitle({ eyebrow, title, right }: { eyebrow?: ReactNode; title: ReactNode; right?: ReactNode }) {
   return (
-    <header className="mb-6 flex items-end justify-between gap-4">
-      <div>
-        {eyebrow && <p className="eyebrow mb-1.5">{eyebrow}</p>}
-        <h1 className="font-display text-[34px] leading-[0.95] font-black">{title}</h1>
+    <header className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+      <div className="min-w-0 shrink-0">
+        {eyebrow && <p className="eyebrow mb-2">{eyebrow}</p>}
+        <h1 className="font-big text-[clamp(40px,13vw,56px)] leading-[0.86] whitespace-nowrap">{title}</h1>
       </div>
       {right}
     </header>

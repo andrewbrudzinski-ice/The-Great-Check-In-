@@ -48,11 +48,11 @@ export function Receipt({
         <div className="min-w-0 flex-1">
           <p className="font-display text-lg leading-tight font-extrabold">{player.name}</p>
           {manual ? (
-            <p className="font-display text-[10px] font-black tracking-[0.12em] text-one">
-              ✍️ ADDED BY {(addedByName ?? "THE OWNER").toUpperCase()} · NO GPS
+            <p className="font-mono text-[10px] font-medium tracking-[0.08em] text-ink-2 uppercase">
+              Added by {addedByName ?? "the owner"} · no GPS
             </p>
           ) : (
-            <p className="inline-flex items-center gap-1 font-display text-[10px] font-black tracking-[0.12em] text-safe">
+            <p className="inline-flex items-center gap-1 font-mono text-[10px] font-medium tracking-[0.08em] text-volt uppercase">
               <CheckIcon size={12} strokeWidth={3} /> VERIFIED AT {checkIn.gymName.toUpperCase()}
             </p>
           )}

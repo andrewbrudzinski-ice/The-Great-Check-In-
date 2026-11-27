@@ -105,6 +105,19 @@ export const SkullIcon = (p: P) => (
     <path d="M10.5 20v-2M13.5 20v-2" />
   </svg>
 );
+export const SignalIcon = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M5 12.5a10 10 0 0 1 14 0M8 15.5a5.5 5.5 0 0 1 8 0" />
+    <circle cx="12" cy="19" r="1.2" fill="currentColor" stroke="none" />
+  </svg>
+);
+export const AlertIcon = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 4 2.8 19.5h18.4z" />
+    <path d="M12 10v4.5" />
+    <circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none" />
+  </svg>
+);
 export const ChatIcon = (p: P) => (
   <svg {...base(p)}>
     <path d="M20.5 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 20.5 12z" />

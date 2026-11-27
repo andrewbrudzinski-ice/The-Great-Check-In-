@@ -89,7 +89,7 @@ export default function GymsPage() {
                   <button onClick={() => setFocus(g.id)} className="block w-full text-left">
                     <div className="flex items-start justify-between gap-3">
                       <p className="font-display text-lg font-extrabold">{g.name}</p>
-                      <span className="shrink-0 rounded-full bg-one/15 px-2 py-0.5 font-display text-[10px] font-black tracking-[0.1em] text-one">PENDING</span>
+                      <span className="shrink-0 rounded-[4px] bg-surface-3 px-1.5 py-[3px] font-mono text-[10px] font-medium tracking-[0.06em] text-ink-2 uppercase">Pending</span>
                     </div>
                     <p className="mt-1 flex items-center gap-1.5 text-xs text-muted">
                       {by && <Avatar player={by} size={18} />}

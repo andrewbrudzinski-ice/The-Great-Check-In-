@@ -34,7 +34,7 @@ export default function SettingsPage() {
       </Link>
       <header className="mb-8">
         <p className="eyebrow mb-1.5">{isOwner ? "Club owner" : isAdmin ? "Club admin" : "Club"}</p>
-        <h1 className="font-display text-[34px] leading-[0.95] font-black">Settings</h1>
+        <h1 className="font-big text-[clamp(44px,15vw,60px)] leading-[0.86]">Settings</h1>
         {!isOwner && (
           <p className="mt-2 text-sm text-muted">
             {isAdmin
@@ -201,7 +201,7 @@ function PlayerEditor({
         {player.weeklyRequirement != null && player.weeklyRequirement !== clubGoal && (
           <span className="rounded bg-volt/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-volt">GOAL {player.weeklyRequirement}/WK</span>
         )}
-        {player.paused && <span className="rounded bg-surface-3 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-muted">⏸ PAUSED</span>}
+        {player.paused && <span className="rounded-[4px] bg-surface-3 px-1.5 py-[2px] font-mono text-[9.5px] tracking-[0.06em] text-muted uppercase">Paused</span>}
         {player.isOwner ? (
           <span className="rounded bg-volt/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-volt">OWNER</span>
         ) : (
